@@ -3,7 +3,6 @@
 __pycache__/
 *.tmp
 .claude/
-/CLAUDE.md
 /旧版/
 
 # 生成的页面
