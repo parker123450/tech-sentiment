@@ -741,7 +741,7 @@ function boot(RAW) {
     const MA_COL = { 5: ["#c98a00", "#e8b23a"], 10: ["#c2457a", "#ed93b1"], 20: ["#6250d6", "#a49cf0"], 50: ["#2a78d6", "#5b9be6"], 100: ["#178f66", "#3cc794"], 200: ["#d9561f", "#f08a5d"] };
     const XCOL = [["#7a6f5c", "#b5a98f"], ["#4d7c8a", "#86b6c4"], ["#8a5a44", "#c9967e"], ["#5c6b2e", "#a3b56a"]];
     const SUBS = [["score", "情绪分"], ["fearx", "超出价格的恐慌"], ["temp", "三个温度"], ["ivrv", "隐含 / 实际波动"], ["rsi", "RSI"], ["vix", "VIX"], ["t3", "VIX 期限结构"], ["breadth", "成分股广度"], ["count", "恐惧 / 脆弱条数"], ["none", "不显示"]];
-    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "score", mk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
+    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "score", mk: true, smk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
     if (!SYMS.some(s => s.k === cfg.sym)) cfg.sym = SYMS[0].k;
     if (!SUBS.some(s => s[0] === cfg.sub)) cfg.sub = "rsi";
     cfg.mas = [...new Set((cfg.mas || []).map(Number).filter(p => p >= 2 && p <= 400))].sort((a, b) => a - b);
@@ -757,12 +757,14 @@ function boot(RAW) {
     setUpDown();
 
     const sma = (a, p) => { const r = new Float64Array(a.length).fill(NaN); let s = 0, k = 0; for (let i = 0; i < a.length; i++) { s += a[i]; if (i >= p) s -= a[i - p]; if (i >= p - 1) r[i] = s / p; } return r; };
+    // 别的品种（KOSPI 等）交易日和美股不一样：取那天或之前最近一个美股交易日的市场读数（最多往前 5 天），副图和色带就不会断
+    const dayIdx = d => { if (DMAP.has(d)) return DMAP.get(d); let lo = 0, hi = D.d.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (D.d[m] <= d) { k = m; lo = m + 1; } else hi = m - 1; } return k >= 0 && (Date.parse(d) - Date.parse(D.d[k])) / 864e5 <= 5 ? k : null; };
     let B = [], DI = new Map(), MA = {}, XMA = {}, V50 = [], ohlc = false, hasVol = false, cur = null, CLX = new Set(), PIV = [];
     function build() {
       cur = SYMS.find(s => s.k === cfg.sym) || SYMS[0];
       B = cur.rows.map((r, i) => {
         const [d, o, h, l, c, v] = r, real = o != null && h != null && l != null;
-        return { d, c, o: real ? o : c, h: real ? Math.max(h, o, c) : c, l: real ? Math.min(l, o, c) : c, v: v || 0, real, rsi: cur.rsi ? cur.rsi[i] : null, di: DMAP.has(d) ? DMAP.get(d) : null };
+        return { d, c, o: real ? o : c, h: real ? Math.max(h, o, c) : c, l: real ? Math.min(l, o, c) : c, v: v || 0, real, rsi: cur.rsi ? cur.rsi[i] : null, di: dayIdx(d) };
       });
       ohlc = B.filter(b => b.real).length > B.length / 2;
       hasVol = B.some(b => b.v > 0);
@@ -778,12 +780,18 @@ function boot(RAW) {
     const MK = new Map();
     function buildMarkers() {
       MK.clear();
-      const add = (d, m) => { const a = MK.get(d) || []; a.push(m); MK.set(d, a); };
+      const add = (d, m) => { if (!d) return; const a = MK.get(d) || []; a.push(m); MK.set(d, a); };
+      // 市场的日子落到这个品种的哪根 K 线：同一天，没有就往后找最近的一根（最多 5 天）
+      const barDate = d => { if (DI.has(d)) return d; let lo = 0, hi = B.length - 1, k = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (B[m].d >= d) { k = m; hi = m - 1; } else lo = m + 1; } return k >= 0 && (Date.parse(B[k].d) - Date.parse(d)) / 864e5 <= 5 ? B[k].d : null; };
       const defs = [
         { t: "恐慌", side: "turn", col: "fear", f: i => D.fear[i] >= 3 },
         { t: "退潮", side: "turn", col: "ok", f: i => D.clear[i] === 1 },
-        { t: "涨过头", side: "risk", col: "greed", f: i => D.frag[i] >= 4 }];
-      for (const df of defs) { let last = -99; for (let i = 0; i < D.d.length; i++) { const on = df.f(i); if (on && i - last > 10) add(D.d[i], df); if (on) last = i; } }
+        { t: "涨过头", side: "risk", col: "greed", f: i => D.frag[i] >= 4 },
+        { t: "极恐", side: "turn", col: "fear", s: 1, f: i => D.sband && D.sband[i] === 0 },
+        { t: "过热", side: "risk", col: "greed", s: 1, f: i => D.sband && D.sband[i] === 4 },
+        { t: "急冷", side: "turn", col: "fear", s: 1, ol: 1, f: i => D.sfast && D.sfast[i] === -1 },
+        { t: "急升", side: "risk", col: "greed", s: 1, ol: 1, f: i => D.sfast && D.sfast[i] === 1 }];
+      for (const df of defs) { if (df.s && !cfg.smk) continue; let last = -99; for (let i = 0; i < D.d.length; i++) { const on = df.f(i); if (on && i - last > 10) add(barDate(D.d[i]), df); if (on) last = i; } }
       let last = -99;
       B.forEach((b, i) => { if (CLX.has(b.d)) { if (i - last > 10) add(b.d, { t: "抛售", side: "turn", col: "alert" }); last = i; } });
     }
@@ -823,7 +831,7 @@ function boot(RAW) {
     function subDef(T) {
       const s = cfg.sub;
       if (s === "none") return null;
-      if (s === "score") return { lo: -100, hi: 100, lines: [-60, -20, 0, 20, 60], ser: [{ f: i => dv(i, "score"), col: T.ink, w: 1.5 }], lab: "情绪分（过热 − 两个恐慌温度的平均）", dp: 0, fill: [[20, 100, T.greed], [-100, -20, T.fear]] };
+      if (s === "score") return { lo: -100, hi: 100, lines: [-60, -20, 20, 60], area: i => dv(i, "score"), ser: [{ f: i => dv(i, "score"), col: T.ink2, w: 1.1 }], lab: "情绪分（过热 − 两个恐慌温度的平均）· 0 以上橙、以下蓝", dp: 0 };
       if (s === "fearx") return { lo: 0, hi: 100, lines: [20, 40, 60, 80], ser: [{ f: i => dv(i, "fearn"), col: T.ink3, w: 1.3 }, { f: i => dv(i, "gfear"), col: T.fear, w: 1.6 }], lab: "定价恐慌（蓝）/ 回撤深度相近时的正常水平（灰）", dp: 0 };
       if (s === "temp") return { lo: 0, hi: 100, lines: [20, 60, 80], ser: [{ f: i => dv(i, "gfear"), col: T.fear, w: 1.5 }, { f: i => dv(i, "gsell"), col: T.alert, w: 1.3 }, { f: i => dv(i, "ghot"), col: T.greed, w: 1.5 }], lab: "定价恐慌（蓝）/ 抛售恐慌（红）/ 过热温度（橙）", dp: 0 };
       if (s === "ivrv") {
@@ -880,23 +888,26 @@ function boot(RAW) {
       const bw = G.barW, FR = hexToRgb(T.fear).join(","), GR = hexToRgb(T.greed).join(",");
 
       g.save(); g.beginPath(); g.rect(G.L, 0, G.R - G.L, plotH); g.clip();
-      // state tint: fear fully priced (blue), fragility ≥ 4 (orange)
+      // 情绪底色：情绪分 ≤ −60（极度恐慌）浅蓝，≥ 60（过热）浅橙
       if (cfg.bg) for (let i = G.i0; i <= G.i1; i++) {
-        const fe = dv(i, "fear"), fr = dv(i, "frag");
-        if (fe != null && fe >= 3) { g.fillStyle = `rgba(${FR},${DARK ? 0.12 : 0.07})`; g.fillRect(xOf(i) - bw / 2, 0, bw + 0.6, G.pH); }
-        else if (fr != null && fr >= 4) { g.fillStyle = `rgba(${GR},${DARK ? 0.11 : 0.07})`; g.fillRect(xOf(i) - bw / 2, 0, bw + 0.6, G.pH); }
+        const sb = dv(i, "sband");
+        if (sb === 0 || sb === 4) { g.fillStyle = `rgba(${sb === 0 ? FR : GR},${DARK ? 0.13 : 0.08})`; g.fillRect(xOf(i) - bw / 2, 0, bw + 0.6, G.pH); }
       }
-      // 状态色带：价格区底部一条，连续的一段写上名字
+      // 情绪色带：价格区底部一条，每天按情绪分着色（蓝 = 恐慌，橙 = 过热，越极端越深），极端的一段写上名字
       if (cfg.bg) {
-        const sy = G.pH - STRIP() + 1, sh = STRIP() - 3, st = i => { const fe = dv(i, "fear"), fr = dv(i, "frag"); return fe != null && fe >= 3 ? "fear" : fr != null && fr >= 4 ? "frag" : null; };
+        const sy = G.pH - STRIP() + 1, sh = STRIP() - 3;
         g.fillStyle = DARK ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.035)"; g.fillRect(G.L, sy, G.R - G.L, sh);
+        for (let i = G.i0; i <= G.i1; i++) {
+          const v = dv(i, "score"); if (v == null) continue;
+          g.fillStyle = `rgba(${v < 0 ? FR : GR},${(Math.min(1, Math.abs(v) / 80) * (DARK ? 0.95 : 0.88)).toFixed(3)})`;
+          g.fillRect(xOf(i) - bw / 2, sy, bw + 0.6, sh);
+        }
         let r0 = null;
         for (let i = G.i0; i <= G.i1 + 1; i++) {
-          const k = i <= G.i1 ? st(i) : null;
+          const sb = i <= G.i1 ? dv(i, "sband") : null, k = sb === 0 ? "fear" : sb === 4 ? "hot" : null;
           if (r0 && k !== r0.k) {
             const x0 = xOf(r0.i) - bw / 2, x1 = xOf(i - 1) + bw / 2;
-            g.fillStyle = r0.k === "fear" ? T.fear : T.greed; g.fillRect(x0, sy, Math.max(2, x1 - x0), sh);
-            if (x1 - x0 >= 44) { g.fillStyle = "#fff"; g.font = "700 11px " + fb; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(r0.k === "fear" ? "恐慌期" : "涨过头", (x0 + x1) / 2, sy + sh / 2 + 0.5); g.textBaseline = "alphabetic"; }
+            if (x1 - x0 >= 56) { g.fillStyle = "#fff"; g.font = "700 11px " + fb; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(r0.k === "fear" ? "极度恐慌" : "过热", (x0 + x1) / 2, sy + sh / 2 + 0.5); g.textBaseline = "alphabetic"; }
             r0 = null;
           }
           if (k && !r0) r0 = { i, k };
@@ -992,8 +1003,9 @@ function boot(RAW) {
             placed.push([x - tw / 2, y, x + tw / 2, y + h]);
             g.beginPath(); g.moveTo(x, risk ? y + h : y); g.lineTo(x, risk ? yP(b.h) - 2 : yP(b.l) + 2); g.stroke();
             const rx = x - tw / 2, rr = 8.5;
-            g.beginPath(); g.moveTo(rx + rr, y); g.arcTo(rx + tw, y, rx + tw, y + h, rr); g.arcTo(rx + tw, y + h, rx, y + h, rr); g.arcTo(rx, y + h, rx, y, rr); g.arcTo(rx, y, rx + tw, y, rr); g.closePath(); g.fill();
-            g.fillStyle = "#fff"; g.fillText(m.t, x, y + h / 2 + 0.5);
+            g.beginPath(); g.moveTo(rx + rr, y); g.arcTo(rx + tw, y, rx + tw, y + h, rr); g.arcTo(rx + tw, y + h, rx, y + h, rr); g.arcTo(rx, y + h, rx, y, rr); g.arcTo(rx, y, rx + tw, y, rr); g.closePath();
+            if (m.ol) { g.fillStyle = T.panel; g.fill(); g.lineWidth = 1.4; g.stroke(); g.fillStyle = col; } else { g.fill(); g.fillStyle = "#fff"; }
+            g.fillText(m.t, x, y + h / 2 + 0.5);
             if (risk) ya = y - 3; else yb = y + h + 3;
           }
         }
@@ -1029,6 +1041,18 @@ function boot(RAW) {
             if (fr) { g.fillStyle = T.greed; g.globalAlpha = fr >= 4 ? 1 : .5; const y = yS(-fr); g.fillRect(xOf(i) - sb / 2, y0, sb, y - y0); }
           }
           g.globalAlpha = 1;
+        }
+        if (sub.area) {      // 以 0 为界：上面填橙，下面填蓝
+          const y0 = yS(0);
+          for (const [t0, t1, col] of [[G.sTop, y0, T.greed], [y0, G.sTop + G.sH, T.fear]]) {
+            g.save(); g.beginPath(); g.rect(G.L, t0, G.R - G.L, t1 - t0); g.clip();
+            g.fillStyle = `rgba(${hexToRgb(col).join(",")},${DARK ? 0.42 : 0.34})`;
+            let run = [];
+            const flush = () => { if (run.length > 1) { g.beginPath(); g.moveTo(run[0][0], y0); for (const [x, y] of run) g.lineTo(x, y); g.lineTo(run[run.length - 1][0], y0); g.closePath(); g.fill(); } run = []; };
+            for (let i = G.i0; i <= G.i1; i++) { const v = sub.area(i); if (v == null) { flush(); continue; } run.push([xOf(i), yS(v)]); }
+            flush(); g.restore();
+          }
+          g.strokeStyle = T.ink3; g.lineWidth = 1; g.beginPath(); g.moveTo(G.L, Math.round(y0) + 0.5); g.lineTo(G.R, Math.round(y0) + 0.5); g.stroke();
         }
         for (const s of sub.ser || []) {
           g.strokeStyle = s.col; g.lineWidth = s.w; g.beginPath(); let on = false;
@@ -1090,7 +1114,9 @@ function boot(RAW) {
     function legend(i) {
       const b = B[i]; if (!b) return;
       const pv = B[i - 1], ch = pv ? (b.c / pv.c - 1) * 100 : null, col = ch == null ? "var(--ink)" : ch >= 0 ? "var(--pos)" : "var(--neg)";
-      $("klegend").innerHTML = `<div class="l1"><b>${esc(cur.n)}</b><span class="num">${b.d}</span>` +
+      const sc = dv(i, "score"), sb = dv(i, "sband");
+      const scTxt = sc == null ? "" : `<span>情绪分 <i style="color:${sc <= -20 ? "var(--fear)" : sc >= 20 ? "var(--greed)" : "var(--ink)"};font-weight:700">${sgn(sc, 0)}</i> ${esc((D.snames || [])[sb] || "")}</span>`;
+      $("klegend").innerHTML = `<div class="l1"><b>${esc(cur.n)}</b><span class="num">${b.d}</span>${scTxt}` +
         (b.real ? `<span>开 <i>${fmtP(b.o)}</i></span><span>高 <i>${fmtP(b.h)}</i></span><span>低 <i>${fmtP(b.l)}</i></span>` : "") +
         `<span>收 <i style="color:${col}">${fmtP(b.c)}</i></span><span><i style="color:${col}">${ch == null ? "" : sgn(ch, 2) + "%"}</i></span>${(MK.get(b.d) || []).map(m => `<b style="color:var(--${m.col === "ok" ? "ok" : m.col === "fear" ? "fear" : m.col === "greed" ? "greed" : "alert"})">${m.t}</b>`).join(" ")}${dayState(i)}</div>` +
         `<div class="l2">${cfg.mas.filter(p => cfg.on[p]).map(p => `<span style="color:${maCol(p)}">MA${p} <i>${fmtP(MA[p][i])}</i></span>`).join("")}</div>`;
@@ -1141,7 +1167,7 @@ function boot(RAW) {
       const i = B.length - 1, m = maState(i);
       $("kma").innerHTML = `<span><b>均线（${B[i].d}）</b></span><span class="${m.cls}">${m.txt}</span><span>价格在 ${m.n} 条均线中的 ${m.below} 条下方</span>` +
         `<span>MA50 / MA200：${crossTxt(50, 200, i, 1000)}</span><span>MA5 / MA20：${crossTxt(5, 20, i, 120)}</span><span>趋势结构：${swingNow()}</span>`;
-      $("kkey").innerHTML = `<b>标签</b>：<b style="color:var(--fear)">恐慌</b> 大家开始花大钱买保险（恐惧指标第一次亮到 3 条） · <b style="color:var(--ok)">退潮</b> 恐慌之后保险变便宜、价格不再创新低 · <b style="color:var(--greed)">涨过头</b> 涨得太急、跟着涨的股票变少、开始有人买保护（只说明危险，不说明哪天见顶） · <b style="color:var(--alert)">抛售</b> 2 倍成交量的大跌，而且已经超卖（${cur.k === "^SOX" ? "用 SMH 的成交量" : "这个品种自己的"}）。标签太挤时会缩成同色小圆点，鼠标停在那天就能看到名字。<br><b>底部色带</b>：蓝色 = 恐慌期，橙色 = 涨过头，前后两种都是整个半导体市场的状态。<b>灰色小圈</b> = 自动找出的摆动高点和低点，虚线连着最近两个高点（橙）和最近两个低点（蓝）。成交量里颜色深的柱子是平时 2 倍以上的量。${(() => { const c = coneNow(); if (!c) return ""; const cv = c.cover ? `历史上实际一个月涨跌落在 ±1 倍范围内的比例：2015 年前 ${fmt(c.cover.pre[0] * 100, 0)}%，2015 年后 ${fmt(c.cover.post[0] * 100, 0)}%；±2 倍内约 ${fmt(c.cover.post[1] * 100, 0)}%。` : "这个标的的期权没有长历史可以检验，按同样的算法画出。"; return `<br><b style="color:var(--accent)">最新一根右边的蓝色扇形</b>：期权给出的未来 21 个交易日预期范围，深色 ±1 倍、浅色 ±2 倍（${esc(c.src)}，隐含波动 ${fmt(c.iv, 1)}%）。${cv}它只衡量幅度，不说明方向。`; })()}`;
+      $("kkey").innerHTML = `<b>标签</b>：<b style="color:var(--fear)">恐慌</b> 大家开始花大钱买保险（恐惧指标第一次亮到 3 条） · <b style="color:var(--ok)">退潮</b> 恐慌之后保险变便宜、价格不再创新低 · <b style="color:var(--greed)">涨过头</b> 涨得太急、跟着涨的股票变少、开始有人买保护（只说明危险，不说明哪天见顶） · <b style="color:var(--alert)">抛售</b> 2 倍成交量的大跌，而且已经超卖（${cur.k === "^SOX" ? "用 SMH 的成交量" : "这个品种自己的"}）。<br><b>情绪标签</b>（可以单独关掉）：<b style="color:var(--fear)">极恐</b> 情绪分跌破 −60 · <b style="color:var(--greed)">过热</b> 情绪分升破 +60 · 空心的 <b style="color:var(--fear)">急冷</b> / <b style="color:var(--greed)">急升</b> 情绪分 10 天的变化是 1995 年以来最快的 2%（只用当天以前的数据比）。都只标每一段的第一天（相邻 10 天只算一次）。标签太挤时会缩成同色小圆点，鼠标停在那天就能看到名字。<br><b>情绪色带</b>（价格区最下面一条）：每天按情绪分着色，蓝 = 恐慌、橙 = 过热，越极端颜色越深；整段在 −60 以下或 +60 以上时，价格区也会铺一层浅色。这些都是整个半导体市场的情绪，KOSPI 等别的品种按同一天（或之前最近一个美股交易日）对照。<b>灰色小圈</b> = 自动找出的摆动高点和低点，虚线连着最近两个高点（橙）和最近两个低点（蓝）。成交量里颜色深的柱子是平时 2 倍以上的量。${(() => { const c = coneNow(); if (!c) return ""; const cv = c.cover ? `历史上实际一个月涨跌落在 ±1 倍范围内的比例：2015 年前 ${fmt(c.cover.pre[0] * 100, 0)}%，2015 年后 ${fmt(c.cover.post[0] * 100, 0)}%；±2 倍内约 ${fmt(c.cover.post[1] * 100, 0)}%。` : "这个标的的期权没有长历史可以检验，按同样的算法画出。"; return `<br><b style="color:var(--accent)">最新一根右边的蓝色扇形</b>：期权给出的未来 21 个交易日预期范围，深色 ±1 倍、浅色 ±2 倍（${esc(c.src)}，隐含波动 ${fmt(c.iv, 1)}%）。${cv}它只衡量幅度，不说明方向。`; })()}`;
     }
     const fwdK = (i, k) => i + k < B.length ? (B[i + k].c / B[i].c - 1) * 100 : null;
     const extK = (i, k, upw) => { if (i + 1 >= B.length) return null; let m = 0; for (let j = i + 1; j <= Math.min(B.length - 1, i + k); j++) { const r = B[j].c / B[i].c - 1; m = upw ? Math.max(m, r) : Math.min(m, r); } return m * 100; };
@@ -1220,10 +1246,11 @@ function boot(RAW) {
         <div class="kgrp" role="group" aria-label="画线工具"><span class="kl">画线</span>${[["pick", "点选"], ["h", "水平线"], ["t", "趋势线"]].map(([k, t]) => `<button type="button" class="kbtn${on(tool === k)}" data-tool="${k}">${t}</button>`).join("")}<button type="button" class="kbtn" data-act="clear">${clearArm ? "再点一次确认" : "清除画线"}</button></div>
         <div class="kgrp" role="group" aria-label="均线"><span class="kl">均线</span>${cfg.mas.map(p => `<button type="button" class="kbtn mach${cfg.on[p] ? "" : " off"}" data-ma="${p}"><i style="background:${maCol(p)}"></i>MA${p}${DEF_MA.includes(p) ? "" : ' <span data-rm="' + p + '" aria-label="删除">×</span>'}</button>`).join("")}<input id="k-maadd" type="number" min="2" max="400" step="1" placeholder="周期" aria-label="添加均线周期"><button type="button" class="kbtn" data-act="addma">添加</button></div>
         <div class="kgrp"><label for="k-sub" class="kl">副图</label><select id="k-sub">${SUBS.map(([id, t]) => `<option value="${id}"${cfg.sub === id ? " selected" : ""}>${t}</option>`).join("")}</select>
-          <label><input type="checkbox" id="k-mk"${cfg.mk ? " checked" : ""}>标记</label><label><input type="checkbox" id="k-bg"${cfg.bg ? " checked" : ""}>状态底色</label><label><input type="checkbox" id="k-sw"${cfg.sw ? " checked" : ""}>摆动结构</label><label><input type="checkbox" id="k-cone"${cfg.cone ? " checked" : ""}>期权预期范围</label>
+          <label><input type="checkbox" id="k-mk"${cfg.mk ? " checked" : ""}>标记</label><label><input type="checkbox" id="k-smk"${cfg.smk ? " checked" : ""}>情绪标签</label><label><input type="checkbox" id="k-bg"${cfg.bg ? " checked" : ""}>情绪色带</label><label><input type="checkbox" id="k-sw"${cfg.sw ? " checked" : ""}>摆动结构</label><label><input type="checkbox" id="k-cone"${cfg.cone ? " checked" : ""}>期权预期范围</label>
           <button type="button" class="kbtn" data-act="updown">${cfg.redUp ? "红涨绿跌" : "绿涨红跌"}</button></div>`;
       $("k-sub").onchange = e => { cfg.sub = e.target.value; saveCfg(); schedule(); };
       $("k-mk").onchange = e => { cfg.mk = e.target.checked; saveCfg(); schedule(); };
+      $("k-smk").onchange = e => { cfg.smk = e.target.checked; saveCfg(); buildMarkers(); schedule(); };
       $("k-bg").onchange = e => { cfg.bg = e.target.checked; saveCfg(); schedule(); };
       $("k-sw").onchange = e => { cfg.sw = e.target.checked; saveCfg(); schedule(); };
       $("k-cone").onchange = e => { cfg.cone = e.target.checked; saveCfg(); setRange(cfg.n); renderMA(); schedule(); };

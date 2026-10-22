@@ -583,8 +583,11 @@ def market(D):
         M[GCOL[kind] + "_pct"] = exp_pct(M[GCOL[kind]]).reindex(M.index)
     M["score"] = G["score"]                             # 见 SCORE_BANDS
     M["score_pct"] = exp_pct(M.score).reindex(M.index)
+    # 情绪变化的速度：10 天变化在自己历史里的分位（只用当天以前）。K 线标签"急冷 / 急升" = 最快的 2%（第三轮的惯例）
+    M["score_spd"] = exp_pct(M.score - M.score.shift(10)).reindex(M.index)
     # 超出价格的恐慌（2026-10-22 用户同意）：同样回撤深度（DD_EDGES 分档，按自己的长期波动折算）的日子里，
     # 定价恐慌通常是多少（只用当天以前，含当天）。今天高出或低于这个正常水平，就是价格以外的那部分情绪。只作描述。
+    M = M.copy()                                         # 前面一列一列加，先整理一下内存
     bucket = pd.Series(np.digitize(M.ddv.fillna(0.0), DD_EDGES), index=M.index).where(M.ddv.notna())
     M["dd_bucket"] = bucket
     M["fear_norm"] = M["fear_xp"] = np.nan
@@ -1234,6 +1237,10 @@ def build(D=None, options=None):
     ms = measure_now(D, M, options)
     S = ms.pop("series")
     daily["score"] = [r6(x, 0) for x in M.score]
+    names = [n for _, n in SCORE_BANDS] + ["过热"]
+    daily["sband"] = [None if not np.isfinite(x) else names.index(score_band(x)) for x in M.score]
+    daily["sfast"] = [0 if not np.isfinite(x) else -1 if x <= 2 else 1 if x >= 98 else 0 for x in M.score_spd]
+    daily["snames"] = names
     daily["fearn"], daily["fearx"] = [r6(x, 0) for x in M.fear_norm], [r6(x, 0) for x in M.fear_x]
     hd = headline(M, grid)
     gs = hd["gauges"]
@@ -1329,7 +1336,7 @@ def append_log(M, built):
 
 
 # ---------------------------------------------------------------- 自检
-CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "fear_norm", "fear_x", "fear_xp", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
+CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "score_spd", "fear_norm", "fear_x", "fear_xp", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
               "br_zema", "fear_n", "frag_n", "pos", "eq_spx", "t_clear", "t_thrust", "t_climax", "smh_relv", "lv"]
 
 
