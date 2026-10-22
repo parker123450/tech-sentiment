@@ -178,7 +178,8 @@
 12. （以后）用 `daily_log.csv` 积累到一两年后，检查对照格和清单的样本外表现。
 13. ✅（2026-10-22）数据管线修复（见上面"数据管线的保护"）。用户说盈透先不做。
 14. （2026-10-22 第五轮，计划 `docs/计划/第五轮.md`）✅ 白色主题、✅ M1–M4 研究、✅ 看板重排（三件事、每日一览、K 线预期范围、期权五问、提示、网站版按需加载）、✅ 云端工作流和 ntfy 代码。
-    - 待用户：装 GitHub Desktop 登录、发布公开仓库、Pages 选 GitHub Actions、加 Secret `NTFY_TOPIC`、手机装 ntfy 订阅、手动运行一次。
+    - ✅ 部署：GitHub 账号 parker123450，用 `gh` 建了公开仓库、开了 Pages（build_type=workflow）、设了 Secret `NTFY_TOPIC`。第一次手动运行 4 分 10 秒成功，Yahoo、FRED、CBOE 在 GitHub 服务器上都能下载；`data` 分支已有 `daily_log.csv`。测试推送已发到 ntfy。
+    - 待用户：手机装 ntfy 订阅频道（频道名在 Secret 里，也记在用户手上，不写进仓库）。
     - 云端跑通后问用户：停用 Claude 应用的定时任务 `tech-sentiment-cloud-daily`；本机 launchd 只留桌面通知还是停用。
 
 ## 改代码时的注意事项
