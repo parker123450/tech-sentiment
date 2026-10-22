@@ -64,6 +64,31 @@ section[id]{scroll-margin-top:58px}
 .h3{font-size:13px;font-weight:700;color:var(--ink-3);letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .h3 em{font-style:normal;font-weight:400;letter-spacing:0}
 
+/* sentiment score: one number for today (= 过热 − 两个恐慌温度的平均) */
+.score{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 28px;margin-bottom:12px;--sc:var(--ink)}
+.score.cold{--sc:var(--fear)} .score.hot{--sc:var(--greed)}
+@media (max-width:760px){.score{grid-template-columns:1fr}}
+.sc-h{font-size:13.5px;font-weight:700;color:var(--ink-2);display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.sc-top{display:flex;align-items:baseline;gap:4px 14px;flex-wrap:wrap;margin-top:6px}
+.sc-v{font-family:var(--f-data);font-size:56px;font-weight:600;line-height:1;color:var(--sc)}
+.sc-v small{font-size:15px;color:var(--ink-3);font-weight:400}
+.sc-b{font-size:22px;font-weight:900;color:var(--sc)}
+.sc-d{font-size:12px;color:var(--ink-3)}
+.sc-bar{position:relative;margin:14px 0 2px}
+.sc-seg{display:flex;height:12px;border-radius:6px;overflow:hidden}
+.sc-seg i{flex:1}
+.sc-seg i:nth-child(1){background:var(--fear)} .sc-seg i:nth-child(2){background:color-mix(in srgb,var(--fear) 40%,var(--panel))}
+.sc-seg i:nth-child(3){background:var(--grid)} .sc-seg i:nth-child(4){background:color-mix(in srgb,var(--greed) 40%,var(--panel))} .sc-seg i:nth-child(5){background:var(--greed)}
+.sc-mk{position:absolute;top:-5px;width:4px;height:22px;margin-left:-2px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px var(--panel)}
+.sc-lab{display:flex;font-size:11.5px;color:var(--ink-2);margin-top:4px}
+.sc-lab span{flex:1;text-align:center}
+.sc-num{display:flex;justify-content:space-between;font-family:var(--f-data);font-size:10.5px;color:var(--ink-3)}
+.sc-t{margin:10px 0 0;font-size:14.5px;line-height:1.65;font-weight:500}
+.sc-f{margin:4px 0 0;font-size:12.5px;color:var(--ink-2);font-family:var(--f-data)}
+.sc-r{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sc-r svg{width:100%;height:auto;display:block}
+.sc-n{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.65}
+
 /* three things to know today */
 .three{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
 .tcard{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--tc);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0;--tc:var(--neutral)}
@@ -299,6 +324,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.7;max-width:84ch}
   <nav class="snav" aria-label="页面导航"><a href="#today">总览</a><a href="#daily-sec">每日一览</a><a href="#temp-sec">温度</a><a href="#kline-sec">K 线</a><a href="#options-sec">期权</a><a href="#breadth-sec">参与度</a><a href="#history-sec">历次对照</a><a href="#method-sec">说明</a></nav>
 
   <section id="today" aria-label="今天该知道的三件事">
+    <div class="score" id="score"></div>
     <div class="three" id="three"></div>
   </section>
 
@@ -426,6 +452,33 @@ function boot(RAW) {
   window.addEventListener("scroll", () => { if (!tipBox.hidden) hideTip(); }, { passive: true });
   document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-go]"); if (b) { const el = $(b.dataset.go); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } });
 
+  // ---------- 情绪分 ----------
+  function renderScore() {
+    const S = RAW.score, box = $("score");
+    if (!S) { box.innerHTML = '<div class="quiet">情绪分未取得数据。</div>'; return; }
+    box.className = "score" + (S.v <= -20 ? " cold" : S.v >= 20 ? " hot" : "");
+    const n = D.d.length, k0 = Math.max(0, n - 252), xs = [];
+    for (let i = k0; i < n; i++) xs.push(D.score ? D.score[i] : null);
+    const W = 420, H = 110, X = k => 2 + k / Math.max(1, xs.length - 1) * (W - 4), Y = v => 6 + (100 - v) / 200 * (H - 12);
+    let path = "", on = false; xs.forEach((x, k) => { if (x == null) { on = false; return; } path += (on ? "L" : "M") + X(k).toFixed(1) + " " + Y(x).toFixed(1); on = true; });
+    const H1 = S.hist || {}, d5 = S.d5 == null ? "" : ` · 5 天 ${S.d5 >= 0 ? "+" : "−"}${Math.abs(S.d5)}`;
+    box.innerHTML = `<div>
+        <div class="sc-h"><span>情绪分 ${tip("把三个温度合成一个数：过热温度 − (定价恐慌 + 抛售恐慌) ÷ 2。−100 是极度恐慌，+100 是过热。刻度固定，不按历史调。它描述今天的状况，不是买卖信号；能说明之后表现的仍是下面的清单条数和期权、趋势风险。")}</span><span class="sc-d">${S.pct == null ? "" : `历史分位 ${S.pct}%`}${d5}</span></div>
+        <div class="sc-top"><span class="sc-v">${S.v > 0 ? "+" : S.v < 0 ? "−" : ""}${Math.abs(S.v)}<small> / ±100</small></span><span class="sc-b">${esc(S.lean)}</span></div>
+        <div class="sc-bar"><div class="sc-seg"><i></i><i></i><i></i><i></i><i></i></div><span class="sc-mk" style="left:${(S.v + 100) / 2}%"></span></div>
+        <div class="sc-lab"><span>极度恐慌</span><span>偏恐慌</span><span>中性</span><span>偏热</span><span>过热</span></div>
+        <div class="sc-num"><span>−100</span><span>−60</span><span>−20</span><span>+20</span><span>+60</span><span>+100</span></div>
+        <p class="sc-t">${esc(S.text)}</p><p class="sc-f">${esc(S.formula)}</p></div>
+      <div class="sc-r"><span class="eyebrow">最近一年</span>
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="情绪分最近一年的走势">${[-60, -20, 20, 60].map(v => `<line x1="2" x2="${W - 2}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/>`).join("")}
+          <line x1="2" x2="${W - 2}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)" stroke-dasharray="3 3"/>
+          <path d="${path}" fill="none" stroke="var(--sc)" stroke-width="1.8" stroke-linejoin="round"/>
+          <circle cx="${X(xs.length - 1)}" cy="${Y(S.v)}" r="3.5" fill="var(--sc)"/>
+          <text x="${W - 4}" y="${Y(60) - 3}" font-size="11" text-anchor="end" fill="var(--ink-3)">+60</text><text x="${W - 4}" y="${Y(-60) + 12}" font-size="11" text-anchor="end" fill="var(--ink-3)">−60</text></svg>
+        <p class="sc-n">一年内最低 ${S.lo1y == null ? "—" : sgn(S.lo1y, 0)}（${S.lo1y_d ? shortDate(S.lo1y_d) : "—"}），最高 ${S.hi1y == null ? "—" : sgn(S.hi1y, 0)}（${S.hi1y_d ? shortDate(S.hi1y_d) : "—"}）。</p>
+        ${H1.lo != null ? `<p class="sc-n">对照：1995 年以来费城半导体 ${H1.n_lo} 次跌超 25% 的低点附近，情绪分平均 ${sgn(H1.lo, 0)}（最低 ${sgn(H1.lo_min, 0)}）；之前高点附近平均 ${sgn(H1.hi, 0)}。</p>` : ""}</div>`;
+  }
+
   // ---------- 今天该知道的三件事 ----------
   function renderThree() {
     const X = (RAW.measure && RAW.measure.three) || [];
@@ -451,23 +504,23 @@ function boot(RAW) {
     const REG = ["上 · 上", "上 · 下", "下 · 上", "下 · 下"];
     const num = (v, dp, suf = "") => v == null ? '<span class="dim">—</span>' : fmt(v, dp) + suf;
     const body = rows.map((r, k) => {
-      const [d, c, ch, z, rv, vix, vxn, siv, smh, gf, gs, gh, fe, fr, reg, pos] = r;
+      const [d, c, ch, z, rv, vix, vxn, siv, smh, gf, gs, gh, fe, fr, reg, pos, sc] = r;
       const nxt = rows[k + 1], wkEnd = nxt && new Date(d).getUTCDay() < new Date(nxt[0]).getUTCDay();
       const zc = z == null ? "" : sh(z < 0 ? "--neg" : "--pos", cl((Math.abs(z) - 1) / 2) * 0.8);
       return `<tr tabindex="0" data-d="${d}"${wkEnd ? ' class="wk-end"' : ""}><td>${d.slice(5)}</td>
         <td class="gl">${num(c, c >= 1000 ? 0 : 2)}</td><td${cP(ch)}>${ch == null ? "—" : sgn(ch, 2) + "%"}</td><td${zc}>${z == null ? "—" : sgn(z, 1)}</td>
         <td class="gl"${sh("--fear", rel(rv, R.rv))}>${num(rv, 0, "%")}</td><td${sh("--fear", rel(siv, R.siv))}>${num(siv, 0, "%")}</td><td${sh("--fear", rel(smh, R.smh))}>${num(smh, 0, "%")}</td>
         <td${sh("--fear", cl((vix - 14) / 26) * 0.8)}>${num(vix, 1)}</td><td${sh("--fear", rel(vxn, R.vxn))}>${num(vxn, 1)}</td>
-        <td class="gl"${sh("--fear", gf / 100)}>${num(gf, 0)}</td><td${sh("--alert", gs / 100)}>${num(gs, 0)}</td><td${sh("--greed", gh / 100)}>${num(gh, 0)}</td>
+        <td class="gl"${sc == null ? "" : sh(sc < 0 ? "--fear" : "--greed", Math.abs(sc) / 100)}><b>${sc == null ? "—" : sgn(sc, 0)}</b></td><td${sh("--fear", gf / 100)}>${num(gf, 0)}</td><td${sh("--alert", gs / 100)}>${num(gs, 0)}</td><td${sh("--greed", gh / 100)}>${num(gh, 0)}</td>
         <td${sh("--fear", fe >= 3 ? 0.8 : fe ? 0.3 : 0)}>${fe}</td><td${sh("--greed", fr >= 4 ? 0.8 : fr >= 2 ? 0.3 : 0)}>${fr}</td>
         <td class="gl"${sh("--alert", reg >= 2 ? 0.45 : 0)}>${reg == null ? "—" : REG[reg]}</td><td${sh(pos === 0 ? "--greed" : "--alert", pos === 3 ? 0.6 : pos === 2 ? 0.25 : pos === 0 ? 0.35 : 0)}>${pos == null ? "—" : POS_N[pos]}</td></tr>`;
     }).join("");
     box.innerHTML = `<div class="dctl"><span>显示</span>${[20, 60].map(n => `<button type="button" class="kbtn${dayN === n ? " on" : ""}" data-dn="${n}">${n} 天</button>`).join("")}<span>最新在上；同一周之间有粗线分隔。</span></div>
       <div class="wk dtab"><table><thead>
-        <tr><th rowspan="2">日期</th><th colspan="3" class="grp gl">费城半导体</th><th colspan="5" class="grp gl">波动（年化）</th><th colspan="5" class="grp gl">情绪</th><th colspan="2" class="grp gl">状态</th></tr>
+        <tr><th rowspan="2">日期</th><th colspan="3" class="grp gl">费城半导体</th><th colspan="5" class="grp gl">波动（年化）</th><th colspan="6" class="grp gl">情绪</th><th colspan="2" class="grp gl">状态</th></tr>
         <tr><th class="gl">收盘</th><th>涨跌</th><th>几倍波动${tip("当天涨跌 ÷ 长期的日常波动。超过 ±2 算大波动，大约每 20 天才有一次。")}</th>
           <th class="gl">实际 21 日${tip("过去 21 个交易日真实走出来的波动，年化。")}</th><th>半导体隐含${tip("VXN × 半导体/纳指长期波动比，近似半导体期权的 30 天隐含波动。历史检验：能衡量之后一个月的波动幅度。")}</th><th>SMH 隐含${tip("SMH 期权链的 30 天隐含波动，2026-10-19 起自己积累。")}</th><th>VIX${tip("标普 500 期权的 30 天隐含波动。20 左右正常，30 以上恐慌。")}</th><th>VXN${tip("纳指 100 期权的 30 天隐含波动。")}</th>
-          <th class="gl">定价恐慌${tip("0–100，有没有人花钱为下跌买保险。只作描述。")}</th><th>抛售恐慌${tip("0–100，股票被卖得多狠。只作描述。")}</th><th>过热${tip("0–100，脆弱度 6 条连续化。只作描述。")}</th><th>恐惧${tip("恐惧定价清单亮了几条（共 5 条）。跌深时亮到 3 条以上，历史上之后 60 天比同样跌深的日子好。")}</th><th>脆弱${tip("脆弱度清单亮了几条（共 6 条）。4 条以上历史上之后偏弱，但样本少。")}</th>
+          <th class="gl">情绪分${tip("−100 极度恐慌到 +100 过热 = 过热 − (定价恐慌 + 抛售恐慌) ÷ 2。只作描述。")}</th><th>定价恐慌${tip("0–100，有没有人花钱为下跌买保险。只作描述。")}</th><th>抛售恐慌${tip("0–100，股票被卖得多狠。只作描述。")}</th><th>过热${tip("0–100，脆弱度 6 条连续化。只作描述。")}</th><th>恐惧${tip("恐惧定价清单亮了几条（共 5 条）。跌深时亮到 3 条以上，历史上之后 60 天比同样跌深的日子好。")}</th><th>脆弱${tip("脆弱度清单亮了几条（共 6 条）。4 条以上历史上之后偏弱，但样本少。")}</th>
           <th class="gl">200 · 50 日线${tip("价格在 200 日线、50 日线的上方还是下方。跌破 200 日线后，之后一个月波动更大、再跌一段的概率更高（33 个品种两段历史都成立），但不说明方向。")}</th><th>价格位置${tip("回撤 ÷ 长期年化波动：回调 ≈ 标普跌 10%，重伤 ≈ 标普跌 20%；延伸 = 离 200 日线超过 1 倍年化波动。")}</th></tr>
       </thead><tbody>${body}</tbody></table></div>`;
   }
@@ -652,8 +705,8 @@ function boot(RAW) {
     const DEF_MA = [5, 10, 20, 50, 100, 200];
     const MA_COL = { 5: ["#c98a00", "#e8b23a"], 10: ["#c2457a", "#ed93b1"], 20: ["#6250d6", "#a49cf0"], 50: ["#2a78d6", "#5b9be6"], 100: ["#178f66", "#3cc794"], 200: ["#d9561f", "#f08a5d"] };
     const XCOL = [["#7a6f5c", "#b5a98f"], ["#4d7c8a", "#86b6c4"], ["#8a5a44", "#c9967e"], ["#5c6b2e", "#a3b56a"]];
-    const SUBS = [["temp", "三个温度"], ["ivrv", "隐含 / 实际波动"], ["rsi", "RSI"], ["vix", "VIX"], ["t3", "VIX 期限结构"], ["breadth", "成分股广度"], ["count", "恐惧 / 脆弱条数"], ["none", "不显示"]];
-    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "temp", mk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
+    const SUBS = [["score", "情绪分"], ["temp", "三个温度"], ["ivrv", "隐含 / 实际波动"], ["rsi", "RSI"], ["vix", "VIX"], ["t3", "VIX 期限结构"], ["breadth", "成分股广度"], ["count", "恐惧 / 脆弱条数"], ["none", "不显示"]];
+    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "score", mk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
     if (!SYMS.some(s => s.k === cfg.sym)) cfg.sym = SYMS[0].k;
     if (!SUBS.some(s => s[0] === cfg.sub)) cfg.sub = "rsi";
     cfg.mas = [...new Set((cfg.mas || []).map(Number).filter(p => p >= 2 && p <= 400))].sort((a, b) => a - b);
@@ -735,6 +788,7 @@ function boot(RAW) {
     function subDef(T) {
       const s = cfg.sub;
       if (s === "none") return null;
+      if (s === "score") return { lo: -100, hi: 100, lines: [-60, -20, 0, 20, 60], ser: [{ f: i => dv(i, "score"), col: T.ink, w: 1.5 }], lab: "情绪分（过热 − 两个恐慌温度的平均）", dp: 0, fill: [[20, 100, T.greed], [-100, -20, T.fear]] };
       if (s === "temp") return { lo: 0, hi: 100, lines: [20, 60, 80], ser: [{ f: i => dv(i, "gfear"), col: T.fear, w: 1.5 }, { f: i => dv(i, "gsell"), col: T.alert, w: 1.3 }, { f: i => dv(i, "ghot"), col: T.greed, w: 1.5 }], lab: "定价恐慌（蓝）/ 抛售恐慌（红）/ 过热温度（橙）", dp: 0 };
       if (s === "ivrv") {
         let lo = Infinity, hi = -Infinity; for (let i = G.i0; i <= G.i1; i++) for (const k of ["siv", "rv"]) { const v = dv(i, k); if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
@@ -1005,7 +1059,8 @@ function boot(RAW) {
       if (G.sub) {
         ks.hidden = false; ks.style.top = (G.sTop + 1) + "px";
         let val = "";
-        if (cfg.sub === "temp") val = `${dv(i, "gfear") ?? "—"} / ${dv(i, "gsell") ?? "—"} / ${dv(i, "ghot") ?? "—"}`;
+        if (cfg.sub === "score") val = `${dv(i, "score") ?? "—"}`;
+        else if (cfg.sub === "temp") val = `${dv(i, "gfear") ?? "—"} / ${dv(i, "gsell") ?? "—"} / ${dv(i, "ghot") ?? "—"}`;
         else if (cfg.sub === "ivrv") val = `${fmt(dv(i, "siv"), 0)}% / ${fmt(dv(i, "rv"), 0)}%`;
         else if (cfg.sub === "rsi") val = fmt(b.rsi, 0);
         else if (cfg.sub === "vix") val = fmt(dv(i, "vix"), 1);
@@ -1417,7 +1472,7 @@ function boot(RAW) {
     el.addEventListener("input", () => { manual[key] = el.value === "" ? null : el.value; try { localStorage.setItem(KEY, JSON.stringify(manual)); } catch (e) {} });
   }
   const safe = (f, id) => { try { f(); } catch (e) { console.error(e); const el = $(id); if (el) el.innerHTML = '<div class="quiet">这一块出错了，未取得数据。</div>'; } };
-  safe(renderThree, "three"); safe(renderDaily, "dtab"); safe(renderHead, "head"); safe(renderGauges, "gauges"); safe(renderTemp, "temp"); safe(renderMatrix, "matrix"); safe(renderLists, "list-fear"); safe(renderLayers, "layers");
+  safe(renderScore, "score"); safe(renderThree, "three"); safe(renderDaily, "dtab"); safe(renderHead, "head"); safe(renderGauges, "gauges"); safe(renderTemp, "temp"); safe(renderMatrix, "matrix"); safe(renderLists, "list-fear"); safe(renderLayers, "layers");
   safe(renderOptions, "opts"); safe(renderBreadth, "breadth"); safe(renderCycles, "cycles"); safe(renderMethod, "method");
   let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { safe(drawTemp, "temp"); safe(renderBreadth, "breadth"); safe(renderCycles, "cycles"); KL.draw(); }, 150); });
   // light / dark switch (light by default; canvases read colour tokens, so redraw them)

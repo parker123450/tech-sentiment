@@ -150,6 +150,11 @@ GAUGES = {
         ("frenzy", "认购狂热或杠杆", "认沽/认购分位 50% → 15%，或杠杆多空比分位 50% → 90%", "仓位"),
         ("spotvol", "价涨波动也涨", "离高点 10% → 3% 以内，且 VIX 比 20 日低点高 0 → 20%", "期权")]},
 }
+# 情绪分（2026-10-22 用户要求恢复一个总分，好一眼看清今天的状况）：
+#   情绪分 = 过热温度 − (定价恐慌 + 抛售恐慌) ÷ 2，−100（极度恐慌）到 +100（过热）。
+#   用的就是上面三个温度，刻度固定（整数分档），不按历史分位、不拟合。和三个温度一样只作描述，不是买卖信号。
+#   分档：≤ −60 极度恐慌；−60 到 −20 偏恐慌；−20 到 20 中性（≤ −10 写"中性偏冷"，≥ 10 写"中性偏热"）；20 到 60 偏热；≥ 60 过热。
+SCORE_BANDS = [(-60, "极度恐慌"), (-20, "偏恐慌"), (20, "中性"), (60, "偏热")]   # 上限（含）→ 名字，再往上是"过热"
 GPFX = {"fear": "gf_", "sell": "gs_", "hot": "gh_"}
 GCOL = {"fear": "g_fear", "sell": "g_sell", "hot": "g_hot"}
 POS_N = ["延伸", "正常", "回调", "重伤"]          # 价格位置
@@ -539,6 +544,9 @@ def market(D):
         gm = pd.concat([M[cols].mean(axis=1).rename(g) for g, cols in groups.items()], axis=1)
         M[GCOL[kind]] = (gm.mean(axis=1) if kind == "fear" else M[[GPFX[kind] + k for k, *_ in spec["items"]]].mean(axis=1)) * 100
         M[GCOL[kind] + "_pct"] = exp_pct(M[GCOL[kind]]).reindex(M.index)
+    # 情绪分：过热 − 两个恐慌温度的平均（缺一个时用另一个），−100 极度恐慌到 +100 过热。见 SCORE_BANDS。
+    M["score"] = M.g_hot - M[["g_fear", "g_sell"]].mean(axis=1)
+    M["score_pct"] = exp_pct(M.score).reindex(M.index)
     return M
 
 
@@ -802,6 +810,53 @@ def gauges_now(M):
                      "items": [[nm, None if num(r[pfx + k]) is None else round(num(r[pfx + k]) * 100), rng, grp] for k, nm, rng, grp in spec["items"]],
                      "hi1y": num(w.max()), "hi1y_d": w.idxmax().strftime("%Y-%m-%d") if w.notna().any() else None}
     return out
+
+
+def score_band(v):
+    for hi, name in SCORE_BANDS:
+        if v <= hi if hi < 20 else v < hi:
+            return name
+    return "过热"
+
+
+def score_now(M, eps_rows):
+    """情绪分的读数：分档、白话、一年走势，以及它在历次大跌的高点、低点附近是多少（检查它描述得准不准，不是预测）。"""
+    r = M.iloc[-1]
+    v = num(r.score)
+    if v is None:
+        return None
+    band = score_band(v)
+    lean = band if band != "中性" else "中性偏冷" if v <= -10 else "中性偏热" if v >= 10 else "中性"
+    gf, gs, gh = num(r.g_fear), num(r.g_sell), num(r.g_hot)
+    parts = []
+    if gs is not None:
+        parts.append(f"已经在卖（抛售恐慌 {gs:.0f}）" if gs >= 40 else f"抛售不多（抛售恐慌 {gs:.0f}）")
+    if gf is not None:
+        parts.append(f"有人在花钱买保险（定价恐慌 {gf:.0f}）" if gf >= 40 else f"没什么人花钱买保险（定价恐慌 {gf:.0f}）")
+    if gh is not None:
+        parts.append(f"偏热（过热 {gh:.0f}）" if gh >= 40 else f"不热（过热 {gh:.0f}）")
+    # 历次大跌（费城半导体跌超 25%）：低点前后 5 天里的最低分、高点前后 5 天里的最高分
+    lows, highs = [], []
+    pos = {t.strftime("%Y-%m-%d"): i for i, t in enumerate(M.index)}
+    sc = M.score.to_numpy()
+    for e in eps_rows:
+        for key, out, f in (("tr", lows, np.nanmin), ("pk", highs, np.nanmax)):
+            if key == "tr" and e.get("ongoing"):
+                continue
+            i = pos.get(e[key])
+            if i is None:
+                continue
+            w = sc[max(0, i - 5): i + 6]
+            if np.isfinite(w).any():
+                out.append(float(f(w)))
+    w = M.score.iloc[-252:]
+    return {"v": round(v), "band": band, "lean": lean, "text": f"{lean}：" + "；".join(parts) + "。" if parts else lean,
+            "formula": f"= 过热 {gh:.0f} − (定价恐慌 {gf:.0f} + 抛售恐慌 {gs:.0f}) ÷ 2" if None not in (gf, gs, gh) else "= 过热 − 两个恐慌温度的平均",
+            "pct": r6(r.score_pct, 0), "d5": r6(r.score - M.score.iloc[-6], 0) if len(M) > 6 else None,
+            "lo1y": r6(w.min(), 0), "lo1y_d": w.idxmin().strftime("%Y-%m-%d") if w.notna().any() else None,
+            "hi1y": r6(w.max(), 0), "hi1y_d": w.idxmax().strftime("%Y-%m-%d") if w.notna().any() else None,
+            "hist": {"n_lo": len(lows), "lo": r6(np.mean(lows), 0) if lows else None, "lo_min": r6(min(lows), 0) if lows else None,
+                     "n_hi": len(highs), "hi": r6(np.mean(highs), 0) if highs else None}}
 
 
 def headline(M, grid):
@@ -1114,6 +1169,7 @@ def build(D=None, options=None):
     daily["gitems"] = {kind: [[k, nm, rng, grp] for k, nm, rng, grp in GAUGES[kind]["items"]] for kind in GAUGES}
     ms = measure_now(D, M, options)
     S = ms.pop("series")
+    daily["score"] = [r6(x, 0) for x in M.score]
     hd = headline(M, grid)
     gs = hd["gauges"]
     ms["three"].append({"k": "mood", "t": "情绪走到哪一步", "big": hd["title"], "unit": "价格位置 × 恐惧定价",
@@ -1129,7 +1185,7 @@ def build(D=None, options=None):
         q, d = M.iloc[k], days[k]
         table.append([d, r6(q.c, 2), r6(chg.iloc[k], 2), r6(z1.iloc[k], 1), r6(S["rv"].iloc[k], 1), r6(q.vix, 1), r6(q.vxn, 1), r6(S["siv"].iloc[k], 1),
                       r6(smh_iv.get(d), 1), r6(q.g_fear, 0), r6(q.g_sell, 0), r6(q.g_hot, 0), int(q.fear_n), int(q.frag_n),
-                      daily["reg"][k], daily["pos"][k]])
+                      daily["reg"][k], daily["pos"][k], r6(q.score, 0)])
     vixtab = []
     for nm, v, p, note in (("VIX", r.vix, r.vix_pct, vix_zone(r.vix)), ("VIX ÷ VIX3M", r.t3, r.t3_pct, term_zone(r.t3)),
                            ("VIX9D ÷ VIX", r.t9, np.nan, "远低于 1 说明眼前很放心" if np.isfinite(r.t9) and r.t9 < 0.9 else "接近或高于 1：眼前的风险被定价得更贵" if np.isfinite(r.t9) else "—"),
@@ -1144,13 +1200,13 @@ def build(D=None, options=None):
         "grid": grid, "episodes": eps_rows, "chart": chart_data(D, M), "daily": daily, "vixtab": vixtab,
         "now": {"vix": r6(r.vix, 2), "t3": r6(r.t3, 3), "pc10": r6(r.pc10, 3), "baa": r6(r.baa, 2), "dd": r6(r.dd), "eq": r6(r.eq_spx),
                 "lv": r6(r.lv), "spx_lv": r6(r.spx_lv), "pct50": r6(r.br_pct50, 1), "fear_avail": int(r.fear_avail)},
-        "options": options, "measure": ms, "table": table, "oread": options_read(M, options, ms["moves"]),
+        "options": options, "measure": ms, "table": table, "score": score_now(M, eps_rows), "oread": options_read(M, options, ms["moves"]),
     }, M
 
 
 # ---------------------------------------------------------------- 样本外记录
 LOG_CSV = os.path.join(HERE, "daily_log.csv")
-LOG_COLS = ["date", "built", "g_fear", "g_sell", "g_hot", "pos", "fear_n", "frag_n", "clear", "fear_on", "frag_on", "sox", "dd", "eq_spx", "z20", "rsi",
+LOG_COLS = ["date", "built", "score", "g_fear", "g_sell", "g_hot", "pos", "fear_n", "frag_n", "clear", "fear_on", "frag_on", "sox", "dd", "eq_spx", "z20", "rsi",
             "vix", "t3", "pc10", "baa", "baa20", "pct50", "pct200"]
 
 
@@ -1158,7 +1214,7 @@ def _log_row(r, d, built):
     row = {"date": d, "built": built, "pos": POS_N[int(r.pos)] if np.isfinite(r.pos) else "", "fear_n": int(r.fear_n), "frag_n": int(r.frag_n),
            "clear": int(bool(r.t_clear)), "fear_on": " ".join(k for k in FEAR if r["f_" + k]), "frag_on": " ".join(k for k in FRAG if r["r_" + k])}
     for k, col, dp in (("sox", "c", 2), ("dd", "dd", 4), ("eq_spx", "eq_spx", 4), ("z20", "z20", 2), ("rsi", "rsi", 1), ("vix", "vix", 2), ("t3", "t3", 3),
-                       ("pc10", "pc10", 3), ("baa", "baa", 2), ("baa20", "baa20", 0), ("pct50", "br_pct50", 1), ("pct200", "br_pct200", 1), ("g_fear", "g_fear", 0), ("g_sell", "g_sell", 0), ("g_hot", "g_hot", 0)):
+                       ("pc10", "pc10", 3), ("baa", "baa", 2), ("baa20", "baa20", 0), ("pct50", "br_pct50", 1), ("pct200", "br_pct200", 1), ("g_fear", "g_fear", 0), ("g_sell", "g_sell", 0), ("g_hot", "g_hot", 0), ("score", "score", 0)):
         v = r6(r[col], dp)
         row[k] = "" if v is None else v
     return row
@@ -1208,7 +1264,7 @@ def append_log(M, built):
 
 
 # ---------------------------------------------------------------- 自检
-CHECK_COLS = ["g_fear", "g_sell", "g_hot", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
+CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
               "br_zema", "fear_n", "frag_n", "pos", "eq_spx", "t_clear", "t_thrust", "t_climax", "smh_relv", "lv"]
 
 
