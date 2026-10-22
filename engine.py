@@ -396,6 +396,63 @@ def breadth(D, idx, members=None):
 
 
 # ---------------------------------------------------------------- 市场层面（以费城半导体指数的交易日为准）
+def gauge_items(M, k=None):
+    """三个温度的每一项折成 0–1：(原始值 − 起点) ÷ 跨度，截到 0–1。起点、跨度是整数或惯例（见 GAUGES）。
+    k = {名字: (起点挪动几个跨度, 跨度倍数)}，只给"情绪分的合理区间"用；平时不传，就是登记的刻度。"""
+    k = k or {}
+    def s(name, x, a, span):
+        d0, m = k.get(name, (0.0, 1.0))
+        return ((x - (a + d0 * span)) / (span * m)).clip(0, 1)
+    near = s("near", M.dd, -0.10, 0.07)                 # 离高点 3% 以内 = 1，10% 以外 = 0
+    return {
+        "gf_vix": s("vix", M.vix, 15, 15), "gf_vixspike": s("vixspike", M.vix / M.vix50, 1, 0.4), "gf_inv": s("inv", M.t3, 0.85, 0.15),
+        "gf_vxn": s("vxn", M.vxn, 18, 18), "gf_vxnspike": s("vxnspike", M.vxn / M.vxn50, 1, 0.4), "gf_pcjump": s("pcjump", M.pcjump, 1, 0.3),
+        "gf_credit": s("credit", M.baa20, 0, 20), "gf_hyief": s("hyief", -M.hyief20, 0, 2),
+        "gs_washout": s("washout", 50 - M.br_pct50, 0, 40), "gs_delever": s("delever", 50 - M.bb_pct, 0, 40), "gs_korea": s("korea", M.kvol, 1, 1),
+        "gh_ext": s("ext", M.extv, 0, 1),
+        "gh_divtop": M.r_divtop.astype(float).where(M.dd.notna()),
+        "gh_shrink": M.r_shrink.astype(float).where(M.smh_relv.notna() | M.dd.notna()),
+        "gh_narrow": near * np.fmax(s("narrow", 80 - M.br_pct50, 0, 20), s("narrow_rsp", -M.rsp60, 0, 2)),
+        "gh_frenzy": np.fmax(s("frenzy_pc", 50 - M.pc_pct, 0, 35), s("frenzy_lev", M.bb_pct - 50, 0, 40)),
+        "gh_spotvol": near * s("spotvol", M.vix / M.vixmin20 - 1, 0, 0.2),
+    }
+
+
+def gauges_from(X, fear_weights="group", panic="mean"):
+    """各项（0–1）合成三个温度（0–100）和情绪分。定价恐慌先组内平均、再组间平均；情绪分 = 过热 − 两个恐慌温度的平均。
+    fear_weights="all"（全部等权）、panic="max"（恐慌取较大）只给"情绪分的合理区间"用。"""
+    out = {}
+    for kind, spec in GAUGES.items():
+        cols = [GPFX[kind] + k for k, *_ in spec["items"]]
+        if kind == "fear" and fear_weights == "group":
+            groups = {}
+            for k, _, _, grp in spec["items"]:
+                groups.setdefault(grp, []).append(GPFX[kind] + k)
+            out[kind] = pd.concat([X[c].mean(axis=1) for c in groups.values()], axis=1).mean(axis=1) * 100
+        else:
+            out[kind] = X[cols].mean(axis=1) * 100
+    p = pd.concat([out["fear"], out["sell"]], axis=1)
+    out["score"] = out["hot"] - (p.mean(axis=1) if panic == "mean" else p.max(axis=1))
+    return out
+
+
+SCALE_NAMES = ["vix", "vixspike", "inv", "vxn", "vxnspike", "pcjump", "credit", "hyief", "washout", "delever", "korea",
+               "ext", "near", "narrow", "narrow_rsp", "frenzy_pc", "frenzy_lev", "spotvol"]
+
+
+def score_range(M, n=200, seed=2026):
+    """情绪分的合理区间（2026-10-22 用户同意）：把主观选择换成同样说得通的其他选择，看今天的分数会落在哪里。
+    刻度：每一项起点挪 ±15% 跨度、跨度乘 0.7–1.3；定价恐慌：组内平均或全部等权；两个恐慌温度：取平均或较大。
+    只算最新一天，固定随机种子（每次结果一样），取 5%–95%。"""
+    rng = np.random.default_rng(seed)
+    R = M.iloc[[-1] * n].reset_index(drop=True)
+    k = {nm: (rng.uniform(-0.15, 0.15, n), rng.uniform(0.7, 1.3, n)) for nm in SCALE_NAMES}
+    X = pd.DataFrame(gauge_items(R, k))
+    v = np.concatenate([gauges_from(X, fw, pn)["score"].to_numpy() for fw in ("group", "all") for pn in ("mean", "max")])
+    v = v[np.isfinite(v)]
+    return (float(np.percentile(v, 5)), float(np.percentile(v, 95))) if len(v) else (None, None)
+
+
 def market(D):
     sox = D["^SOX"]
     idx = sox.index
@@ -509,7 +566,6 @@ def market(D):
     M["eq_spx"] = M.dd / M.lv * M.spx_lv          # 按波动折算成"相当于标普跌了多少"
 
     # ---- 三个温度（GAUGES）
-    c01 = lambda x: x.clip(0, 1)
     vxn = get("^VXN")
     M["vxn50"] = align(vxn.rolling(50, min_periods=50).mean(), idx) if vxn is not None else np.nan
     M["pcjump"] = align(pc10 / pc10.rolling(250, min_periods=120).median(), idx) if pc10 is not None else np.nan
@@ -519,34 +575,24 @@ def market(D):
         M["kvol"] = align(np.log(ks.c).diff().rolling(20, min_periods=20).std() * SQ / kf.lv, idx)
     else:
         M["kvol"] = np.nan
-    M["gf_vix"] = c01((M.vix - 15) / 15)
-    M["gf_vixspike"] = c01((M.vix / M.vix50 - 1) / 0.4)
-    M["gf_inv"] = c01((M.t3 - 0.85) / 0.15)
-    M["gf_vxn"] = c01((M.vxn - 18) / 18)
-    M["gf_vxnspike"] = c01((M.vxn / M.vxn50 - 1) / 0.4)
-    M["gf_pcjump"] = c01((M.pcjump - 1) / 0.3)
-    M["gf_credit"] = c01(M.baa20 / 20)
-    M["gf_hyief"] = c01(-M.hyief20 / 2)
-    M["gs_washout"] = c01((50 - M.br_pct50) / 40)
-    M["gs_delever"] = c01((50 - M.bb_pct) / 40)
-    M["gs_korea"] = c01(M.kvol - 1)
-    nearv = c01((M.dd + 0.10) / 0.07)                 # 离高点 3% 以内 = 1，10% 以外 = 0
-    M["gh_ext"] = c01(M.extv)
-    M["gh_divtop"] = M.r_divtop.astype(float).where(M.dd.notna())
-    M["gh_shrink"] = M.r_shrink.astype(float).where(M.smh_relv.notna() | M.dd.notna())
-    M["gh_narrow"] = nearv * np.fmax(c01((80 - M.br_pct50) / 20), c01(-M.rsp60 / 2))
-    M["gh_frenzy"] = np.fmax(c01((50 - M.pc_pct) / 35), c01((M.bb_pct - 50) / 40))
-    M["gh_spotvol"] = nearv * c01((M.vix / M.vixmin20 - 1) / 0.2)
-    for kind, spec in GAUGES.items():
-        groups = {}
-        for k, _, _, grp in spec["items"]:
-            groups.setdefault(grp, []).append(GPFX[kind] + k)
-        gm = pd.concat([M[cols].mean(axis=1).rename(g) for g, cols in groups.items()], axis=1)
-        M[GCOL[kind]] = (gm.mean(axis=1) if kind == "fear" else M[[GPFX[kind] + k for k, *_ in spec["items"]]].mean(axis=1)) * 100
+    for k, v in gauge_items(M).items():
+        M[k] = v
+    G = gauges_from(M)
+    for kind in GAUGES:
+        M[GCOL[kind]] = G[kind]
         M[GCOL[kind] + "_pct"] = exp_pct(M[GCOL[kind]]).reindex(M.index)
-    # 情绪分：过热 − 两个恐慌温度的平均（缺一个时用另一个），−100 极度恐慌到 +100 过热。见 SCORE_BANDS。
-    M["score"] = M.g_hot - M[["g_fear", "g_sell"]].mean(axis=1)
+    M["score"] = G["score"]                             # 见 SCORE_BANDS
     M["score_pct"] = exp_pct(M.score).reindex(M.index)
+    # 超出价格的恐慌（2026-10-22 用户同意）：同样回撤深度（DD_EDGES 分档，按自己的长期波动折算）的日子里，
+    # 定价恐慌通常是多少（只用当天以前，含当天）。今天高出或低于这个正常水平，就是价格以外的那部分情绪。只作描述。
+    bucket = pd.Series(np.digitize(M.ddv.fillna(0.0), DD_EDGES), index=M.index).where(M.ddv.notna())
+    M["dd_bucket"] = bucket
+    M["fear_norm"] = M["fear_xp"] = np.nan
+    for b in bucket.dropna().unique():
+        x = M.g_fear[(bucket == b) & M.g_fear.notna()]
+        M.loc[x.index, "fear_norm"] = x.expanding(min_periods=60).median()
+        M.loc[x.index, "fear_xp"] = x.expanding(min_periods=60).rank(pct=True) * 100
+    M["fear_x"] = M.g_fear - M.fear_norm
     return M
 
 
@@ -850,7 +896,25 @@ def score_now(M, eps_rows):
             if np.isfinite(w).any():
                 out.append(float(f(w)))
     w = M.score.iloc[-252:]
-    return {"v": round(v), "band": band, "lean": lean, "text": f"{lean}：" + "；".join(parts) + "。" if parts else lean,
+    lo, hi = score_range(M)
+    rng = None
+    if lo is not None:
+        b1, b2 = score_band(lo), score_band(hi)
+        rng = {"lo": round(lo), "hi": round(hi), "cross": b1 != b2,
+               "text": (f"换成别的同样说得通的刻度和公式，今天在 {lo:+.0f} 到 {hi:+.0f} 之间" + (f"，跨“{b1}”和“{b2}”两档：正处在边界上，别把档位看得太死。" if b1 != b2 else f"，都在“{band}”这一档。")).replace("-", "−")}
+    fx = None
+    if np.isfinite(r.fear_x) and np.isfinite(r.dd_bucket):
+        b = int(r.dd_bucket)
+        edges = [-np.inf] + DD_EDGES + [np.inf]
+        lo_e, hi_e = edges[b], edges[b + 1]
+        sox_rng = (f"{-hi_e * r.lv:.0%}–{-lo_e * r.lv:.0%}" if np.isfinite(lo_e) else f"{-hi_e * r.lv:.0%} 以上") if np.isfinite(hi_e) else f"{-lo_e * r.lv:.0%} 以内"
+        xp = float(r.fear_xp)
+        word = ("远高于正常：恐慌式定价" if xp >= 90 else "高于正常：恐惧比跌幅更重" if xp >= 75
+                else "低于正常：价格跌了，恐惧没跟上" if xp <= 25 else "和跌幅大致相称")
+        fx = {"v": round(float(r.fear_x)), "norm": round(float(r.fear_norm)), "fear": round(float(r.g_fear)), "pct": round(xp), "word": word,
+              "text": f"回撤深度相近（半导体回撤 {sox_rng}）的日子里，定价恐慌通常是 {r.fear_norm:.0f}，今天 {r.g_fear:.0f}，"
+                      f"{'高' if r.fear_x >= 0 else '低'} {abs(r.fear_x):.0f}，比 {xp:.0f}% 的同类日子高：{word}。"}
+    return {"v": round(v), "band": band, "range": rng, "fearx": fx, "lean": lean, "text": f"{lean}：" + "；".join(parts) + "。" if parts else lean,
             "formula": f"= 过热 {gh:.0f} − (定价恐慌 {gf:.0f} + 抛售恐慌 {gs:.0f}) ÷ 2" if None not in (gf, gs, gh) else "= 过热 − 两个恐慌温度的平均",
             "pct": r6(r.score_pct, 0), "d5": r6(r.score - M.score.iloc[-6], 0) if len(M) > 6 else None,
             "lo1y": r6(w.min(), 0), "lo1y_d": w.idxmin().strftime("%Y-%m-%d") if w.notna().any() else None,
@@ -1170,6 +1234,7 @@ def build(D=None, options=None):
     ms = measure_now(D, M, options)
     S = ms.pop("series")
     daily["score"] = [r6(x, 0) for x in M.score]
+    daily["fearn"], daily["fearx"] = [r6(x, 0) for x in M.fear_norm], [r6(x, 0) for x in M.fear_x]
     hd = headline(M, grid)
     gs = hd["gauges"]
     ms["three"].append({"k": "mood", "t": "情绪走到哪一步", "big": hd["title"], "unit": "价格位置 × 恐惧定价",
@@ -1185,7 +1250,7 @@ def build(D=None, options=None):
         q, d = M.iloc[k], days[k]
         table.append([d, r6(q.c, 2), r6(chg.iloc[k], 2), r6(z1.iloc[k], 1), r6(S["rv"].iloc[k], 1), r6(q.vix, 1), r6(q.vxn, 1), r6(S["siv"].iloc[k], 1),
                       r6(smh_iv.get(d), 1), r6(q.g_fear, 0), r6(q.g_sell, 0), r6(q.g_hot, 0), int(q.fear_n), int(q.frag_n),
-                      daily["reg"][k], daily["pos"][k], r6(q.score, 0)])
+                      daily["reg"][k], daily["pos"][k], r6(q.score, 0), r6(q.fear_x, 0)])
     vixtab = []
     for nm, v, p, note in (("VIX", r.vix, r.vix_pct, vix_zone(r.vix)), ("VIX ÷ VIX3M", r.t3, r.t3_pct, term_zone(r.t3)),
                            ("VIX9D ÷ VIX", r.t9, np.nan, "远低于 1 说明眼前很放心" if np.isfinite(r.t9) and r.t9 < 0.9 else "接近或高于 1：眼前的风险被定价得更贵" if np.isfinite(r.t9) else "—"),
@@ -1264,7 +1329,7 @@ def append_log(M, built):
 
 
 # ---------------------------------------------------------------- 自检
-CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
+CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "fear_norm", "fear_x", "fear_xp", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
               "br_zema", "fear_n", "frag_n", "pos", "eq_spx", "t_clear", "t_thrust", "t_climax", "smh_relv", "lv"]
 
 
