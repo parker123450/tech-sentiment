@@ -5,7 +5,9 @@
   - 趋势、动量、量能、参与度只描述"现在在哪一段"。口径无量纲（涨跌按各自的波动折算、成交量除以自己的均量），
     同一条规则对半导体指数、英伟达、KOSPI 都通用。
   - 期权和信用说明"情绪有没有被定价"：和全部历史比（只用当天以前的数据），再加固定刻度。
-  - 不合成总分。输出三样东西：对照格（价格位置 × 恐惧定价）、底部清单和出清确认、脆弱度清单。
+  - 输出：对照格（价格位置 × 恐惧定价）、底部清单和出清确认、脆弱度清单；三个温度和情绪分（只作描述）；
+    第六轮（2026-10-23）加三个因子（波动恐惧、仓位、价格与参与度）、周期位置（把历次顶底重复出现的顺序写成状态）、
+    指标注册表（每个指标三句话：是什么、代表什么情绪、有什么用）、变化扫描、宏观背景。都只作描述。
 
 所有阈值登记在 SPEC 里（机制 + 阈值来源），写好后才跑研究；研究结果只决定标签，不回头改阈值。
 
@@ -48,8 +50,8 @@ SPEC = {
                      mech="价格还在创新高，推动力已经在减弱（顶背离）。", src="RSI(14) 惯例；60 日新高、相隔 10–60 天"),
     "shrink":   dict(group="frag", expect=-1, name="新高时成交量萎缩（SMH 20 日均量 < 50 日均量 × 0.9）",
                      mech="价格新高，跟进的买盘却在减少。", src="整数比例"),
-    "narrow":   dict(group="frag", expect=-1, name="指数离高点 3% 以内，但成分股在 50 日线上方的比例 < 60%，或等权标普 60 日跑输 ≥ 2%",
-                     mech="上涨只靠少数大票，多数股票没有跟上。", src="整数刻度"),
+    "narrow":   dict(group="frag", expect=-1, name="指数离高点 5% 以内，但成分股在 50 日线上方的比例比 60 日峰值回落 ≥ 20 个百分点，或等权标普 60 日跑输 ≥ 2%",
+                     mech="参与度先于价格见顶：指数还在高位，跟着涨的股票已经从峰值明显减少。", src="整数刻度（2026-10-23 第六轮改，原来是绝对水平 < 60%）"),
     "frenzy":   dict(group="frag", expect=-1, name="认沽/认购比在历史最低 15%，或 3 倍做多÷做空成交额在历史最高 10%",
                      mech="大量买认购、加杠杆做多。", src="全部历史的分位"),
     "spotvol":  dict(group="frag", expect=-1, name="价格离高点 5% 以内，VIX 已经从 20 日低点抬升 20%",
@@ -130,7 +132,9 @@ def expected_move(iv_pct, days):
 FEAR = [k for k, v in SPEC.items() if v["group"] == "fear"]
 FRAG = [k for k, v in SPEC.items() if v["group"] == "frag"]
 # 三个温度（2026-10-20 用户同意）：0–100，每一项按"离公认的恐慌 / 过热水平还有多远"折成 0–1，刻度都是整数或惯例。
-#   定价恐慌：有没有人花钱为下跌买保险（期权和信用）。按机制分 4 组，组内平均、组间再平均，避免 VIX 家族占太多权重。
+#   定价恐慌：有没有人花钱为下跌买保险（期权和信用）。按机制分组，组内平均、组间再平均，避免 VIX 家族占太多权重。
+#   2026-10-23 第六轮（用户同意，理由见 docs/计划/第六轮.md）：去掉 VXN 一组（和 VIX 同源，相关 0.95，且 2001 年的起点把全历史分位弄坏）；
+#   韩国项改成 KOSPI 20 日 Z 分数（和项目的"速度"口径一致）；上涨变窄改成参与度从 60 日峰值回落多少。
 #   抛售恐慌：股票被卖得多狠（半导体普跌、去杠杆、韩国剧烈波动）。描述阶段用，不是信号。
 #   过热温度：脆弱度 6 条连续化。
 # 三个分开显示，不合成一个数。研究里它们都没有稳定的预测力（见 研究结论.md），只作描述；有历史支持的仍是清单条数。
@@ -138,15 +142,14 @@ GAUGES = {
     "fear": {"name": "定价恐慌", "items": [
         ("vix", "VIX", "15 → 30", "大盘期权"), ("vixspike", "VIX 相对 50 日均值", "1.0 → 1.4 倍", "大盘期权"),
         ("inv", "期限结构 VIX÷VIX3M", "0.85 → 1.0", "大盘期权"),
-        ("vxn", "VXN 纳指科技期权", "18 → 36", "科技期权"), ("vxnspike", "VXN 相对 50 日均值", "1.0 → 1.4 倍", "科技期权"),
         ("pcjump", "认沽/认购比 ÷ 自己近一年中位数", "1.0 → 1.3 倍", "期权成交"),
         ("credit", "Baa 利差 20 日走阔", "0 → 20bp", "信用"), ("hyief", "HYG÷IEF 20 日跌幅", "0 → 2%", "信用")]},
     "sell": {"name": "抛售恐慌", "items": [
         ("washout", "成分股在 50 日线上方的比例", "50% → 10%", "普跌"), ("delever", "3 倍做多÷做空成交额分位", "50% → 10%", "去杠杆"),
-        ("korea", "KOSPI 20 日波动 ÷ 长期波动", "1 → 2 倍", "韩国")]},
+        ("korea", "KOSPI 20 日急跌（Z 分数）", "0 → −2", "韩国")]},
     "hot": {"name": "过热温度", "items": [
         ("ext", "离 200 日线", "0 → 1 倍年化波动", "延伸"), ("divtop", "顶背离", "没有 / 有", "动量"), ("shrink", "缩量新高", "没有 / 有", "量能"),
-        ("narrow", "上涨变窄", "离高点 10% → 3% 以内，且成分股 50 日线上方 80% → 60%（或等权跑输 0 → 2%）", "参与度"),
+        ("narrow", "上涨变窄", "离高点 10% → 5% 以内，且成分股 50 日线上方比例比 60 日峰值回落 0 → 30 个百分点（或等权跑输 0 → 2%）", "参与度"),
         ("frenzy", "认购狂热或杠杆", "认沽/认购分位 50% → 15%，或杠杆多空比分位 50% → 90%", "仓位"),
         ("spotvol", "价涨波动也涨", "离高点 10% → 3% 以内，且 VIX 比 20 日低点高 0 → 20%", "期权")]},
 }
@@ -404,16 +407,18 @@ def gauge_items(M, k=None):
         d0, m = k.get(name, (0.0, 1.0))
         return ((x - (a + d0 * span)) / (span * m)).clip(0, 1)
     near = s("near", M.dd, -0.10, 0.07)                 # 离高点 3% 以内 = 1，10% 以外 = 0
+    near5 = s("near5", M.dd, -0.10, 0.05)               # 离高点 5% 以内 = 1，10% 以外 = 0
     return {
-        "gf_vix": s("vix", M.vix, 15, 15), "gf_vixspike": s("vixspike", M.vix / M.vix50, 1, 0.4), "gf_inv": s("inv", M.t3, 0.85, 0.15),
-        "gf_vxn": s("vxn", M.vxn, 18, 18), "gf_vxnspike": s("vxnspike", M.vxn / M.vxn50, 1, 0.4), "gf_pcjump": s("pcjump", M.pcjump, 1, 0.3),
+        "gf_vix": s("vix", M.vix, 15, 15), "gf_vixspike": s("vixspike", M.vixr50, 1, 0.4), "gf_inv": s("inv", M.t3, 0.85, 0.15),
+        "gf_pcjump": s("pcjump", M.pcjump, 1, 0.3),
         "gf_credit": s("credit", M.baa20, 0, 20), "gf_hyief": s("hyief", -M.hyief20, 0, 2),
-        "gs_washout": s("washout", 50 - M.br_pct50, 0, 40), "gs_delever": s("delever", 50 - M.bb_pct, 0, 40), "gs_korea": s("korea", M.kvol, 1, 1),
+        "gs_washout": s("washout", 50 - M.br_pct50, 0, 40), "gs_delever": s("delever", 50 - M.bb_pct, 0, 40), "gs_korea": s("korea", -M.kz20, 0, 2),
         "gh_ext": s("ext", M.extv, 0, 1),
         "gh_divtop": M.r_divtop.astype(float).where(M.dd.notna()),
         "gh_shrink": M.r_shrink.astype(float).where(M.smh_relv.notna() | M.dd.notna()),
-        "gh_narrow": near * np.fmax(s("narrow", 80 - M.br_pct50, 0, 20), s("narrow_rsp", -M.rsp60, 0, 2)),
+        "gh_narrow": near5 * np.fmax(s("narrow", M.br_drop60, 0, 30), s("narrow_rsp", -M.rsp60, 0, 2)),
         "gh_frenzy": np.fmax(s("frenzy_pc", 50 - M.pc_pct, 0, 35), s("frenzy_lev", M.bb_pct - 50, 0, 40)),
+        "gx_frenzy_pc": s("frenzy_pc", 50 - M.pc_pct, 0, 35), "gx_frenzy_lev": s("frenzy_lev", M.bb_pct - 50, 0, 40),   # 仓位因子用：自满侧两个子项分开
         "gh_spotvol": near * s("spotvol", M.vix / M.vixmin20 - 1, 0, 0.2),
     }
 
@@ -436,8 +441,8 @@ def gauges_from(X, fear_weights="group", panic="mean"):
     return out
 
 
-SCALE_NAMES = ["vix", "vixspike", "inv", "vxn", "vxnspike", "pcjump", "credit", "hyief", "washout", "delever", "korea",
-               "ext", "near", "narrow", "narrow_rsp", "frenzy_pc", "frenzy_lev", "spotvol"]
+SCALE_NAMES = ["vix", "vixspike", "inv", "pcjump", "credit", "hyief", "washout", "delever", "korea",
+               "ext", "near", "near5", "narrow", "narrow_rsp", "frenzy_pc", "frenzy_lev", "spotvol"]
 
 
 def score_range(M, n=200, seed=2026):
@@ -451,6 +456,309 @@ def score_range(M, n=200, seed=2026):
     v = np.concatenate([gauges_from(X, fw, pn)["score"].to_numpy() for fw in ("group", "all") for pn in ("mean", "max")])
     v = v[np.isfinite(v)]
     return (float(np.percentile(v, 5)), float(np.percentile(v, 95))) if len(v) else (None, None)
+
+
+
+# ---------------------------------------------------------------- 三个因子（第六轮，2026-10-23 用户同意）
+# 核对（docs/审查/2026-10-22_第六轮指标核对.md）发现数据里只有三个独立的东西：波动恐惧、仓位、价格与参与度。
+# 这里把三个温度用的同一批 0–1 项目按机制重分三组，各自平均，给第一屏看。温度是情绪分的输入，因子是人看的分组。
+FACTORS = {
+    "vol": dict(name="波动恐惧", q="有没有人花钱为下跌买保险", two=False, fear=["gf_vix", "gf_vixspike", "gf_inv", "gf_credit", "gf_hyief"], greed=[],
+                words=["平静", "有点紧张", "在买保险", "恐慌", "极度恐慌"],
+                how="期权和信用：VIX、VIX 跳升、期限倒挂、Baa 走阔、HYG÷IEF 的平均。0 平静，100 恐慌。"),
+    "pos": dict(name="仓位", q="人群押在哪一边", two=True, fear=["gf_pcjump", "gs_delever"], greed=["gx_frenzy_pc", "gx_frenzy_lev"],
+                words=["重度对冲", "偏防守", "中性", "偏自满", "自满、在加杠杆"],
+                how="自满侧（认沽/认购比在历史低位、3 倍做多÷做空在历史高位，两项平均）减恐惧侧（认沽/认购跳升、去杠杆，两项平均）。−100 恐惧对冲，+100 自满加杠杆。"),
+    "px": dict(name="价格与参与度", q="价格走到哪一步、多少股票在跟", two=True, fear=["gs_washout", "gs_korea"], greed=["gh_ext", "gh_divtop", "gh_shrink", "gh_narrow", "gh_spotvol"],
+               words=["全面杀跌", "偏弱、在卖", "正常", "偏热", "过热"],
+               how="过热侧（延伸、顶背离、缩量新高、上涨变窄、价涨波动也涨）减恐惧侧（成分股普跌、KOSPI 急跌）。−100 普跌，+100 过热。"),
+}
+
+
+EXTRA_ITEMS = {"gx_frenzy_pc": ("认沽/认购比在历史低位", "分位 50% → 15%"), "gx_frenzy_lev": ("3 倍做多÷做空在历史高位", "分位 50% → 90%")}
+
+
+def factors_from(X):
+    out = {}
+    for k, f in FACTORS.items():
+        fear = X[f["fear"]].mean(axis=1) if f["fear"] else 0.0
+        greed = X[f["greed"]].mean(axis=1) if f["greed"] else 0.0
+        out[k] = (greed - fear) * 100 if f["two"] else fear * 100
+    return out
+
+
+def factor_word(k, v):
+    f = FACTORS[k]
+    if v is None or not np.isfinite(v):
+        return "数据不足"
+    i = min(4, int(v // 20)) if not f["two"] else (0 if v <= -60 else 1 if v <= -20 else 2 if v < 20 else 3 if v < 60 else 4)
+    return f["words"][i]
+
+
+# ---------------------------------------------------------------- 周期位置（第六轮，只作描述）
+# 核对里重复出现的是顺序：底部是"普跌和跳升先到、恐惧和信用后到、最后的低点恐惧更少"；顶部是"参与度先走、仓位自满、价格最后"。
+# 按先后判断，互斥，第一个满足的算。阈值都是整数惯例，登记后不改。
+STATES = [
+    ("panic", "恐慌定价中", "恐惧定价清单亮了 3 条以上：大家在花大钱买保险。历史上跌深时出现这种组合，之后 60 天比同样跌深的日子好。", "fear"),
+    ("ebb", "恐慌退潮", "恐慌之后保险价格回落、价格不再创新低：被迫的对冲和抛售告一段落。", "ok"),
+    ("retest", "二次探底", "60 天内出现过恐慌，今天价格创 20 日新低，但恐惧比那次少：磨出来的底常见的第二次探底。", "watch"),
+    ("deep0", "跌了没人买保险", "回调或重伤，恐惧 0 条：按历次底部的共同特征，真正的恐慌还没来过，历史上之后更差。", "alert"),
+    ("deep1", "跌了部分定价", "回调或重伤，恐惧 1–2 条：恐惧开始被定价，但还不充分。", "watch"),
+    ("top", "参与度先走", "价格离高点 5% 以内，参与度已经比 60 日峰值回落 20 个百分点以上：跟着涨的股票在减少。这是历次顶部最稳定的特征，但牛市里也常出现，只说明结构在变脆。", "greed"),
+    ("ext", "延伸", "离 200 日线超过 1 倍年化波动：追涨资金集中。历史上之后平均反而继续涨（动量延续），只说明脆。", "greed"),
+    ("thrust", "普涨回归", "成分股从普跌到普涨不到两周：资金在集体回来。", "ok"),
+    ("calm", "平稳", "没有上述任何一种结构。", "calm"),
+]
+STATE_N = [s[1] for s in STATES]
+
+
+def cycle_state(M):
+    yes = lambda s: s.fillna(False).astype(bool)
+    pk60 = M.fear_n.rolling(60, min_periods=1).max()
+    low20 = M.c.rolling(20, min_periods=20).min()
+    conds = [yes(M.fear_n >= 3), yes(M.t_clear), yes((pk60 >= 3) & (M.c <= low20) & (M.fear_n < pk60)),
+             yes((M.pos >= 2) & (M.fear_n == 0)), yes((M.pos >= 2) & M.fear_n.between(1, 2)),
+             yes((M.dd >= -0.05) & (M.br_drop60 >= 20)), yes(M.pos == 0), yes(M.t_thrust)]
+    st = np.full(len(M), len(STATES) - 1, float)
+    for i in range(len(conds) - 1, -1, -1):
+        st = np.where(conds[i].to_numpy(), i, st)
+    return pd.Series(st, index=M.index).where(M.pos.notna())
+
+
+def days_since_extreme(s, n=252, kind="max"):
+    """最近 n 天里的最高（最低）值最近一次出现是几天前（0 = 今天）。"""
+    w = s.iloc[-n:].dropna()
+    if w.empty:
+        return None, None
+    ext = w.max() if kind == "max" else w.min()
+    t = w.index[w == ext][-1]                            # 同样的极值出现多次时取最近一次（比如参与度多次到 100%）
+    return int(len(s) - 1 - s.index.get_loc(t)), float(w.loc[t])
+
+
+def state_now(M):
+    r = M.iloc[-1]
+    if not np.isfinite(r.state):
+        return None
+    i = int(r.state)
+    run = 0
+    for v in M.state.iloc[::-1]:
+        if v != i:
+            break
+        run += 1
+    prev = M.state.iloc[-run - 1] if run < len(M) else np.nan
+    # 顺序线：几件事各在几天前到极端（最近一年）
+    seq = []
+    for name, col, kind in (("参与度峰值", "br_pct50", "max"), ("参与度谷底", "br_pct50", "min"), ("VIX 峰值", "vix", "max"),
+                            ("认沽/认购峰值", "pc10", "max"), ("价格高点", "c", "max"), ("价格低点", "c", "min")):
+        d, v = days_since_extreme(M[col], 252, kind)
+        if d is not None:
+            seq.append({"k": name, "days": d, "v": r6(v, 2), "date": M.index[-1 - d].strftime("%Y-%m-%d")})
+    # 历史：进入这个状态之后 60 天（和同样回撤深度的日子比），只作描述
+    hist = {}
+    for j, (sid, nm, *_rest) in enumerate(STATES):
+        enter = (M.state == j) & (M.state.shift() != j)
+        hist[sid] = event_stats(enter.fillna(False), M.c, M.ddv)
+    sub = []
+    if i == 5 and bool(r.r_frenzy):
+        sub.append("仓位自满")
+    if i in (3, 4) and bool(r.r_ext):
+        sub.append("仍离 200 日线很远")
+    sid, name, text, tone = STATES[i]
+    return {"i": i, "id": sid, "name": name, "text": text, "tone": tone, "days": run, "sub": sub,
+            "prev": STATE_N[int(prev)] if np.isfinite(prev) else None, "seq": seq,
+            "hist": {k: {e: {"n": v[e]["n"], "f60": r6(v[e].get("f60")), "ex60": r6(v[e].get("ex60"))} for e in ("all", "pre", "post")} for k, v in hist.items()},
+            "names": STATE_N}
+
+
+# ---------------------------------------------------------------- 指标注册表（第六轮）：每个指标三句话，看板、提示、词典都从这里生成
+# f = 属于哪个因子；col = engine.market() 的列；item = 对应的 0–1 项（≥ 0.8 算"亮"）；light = 自定义亮灯规则（−1 恐惧侧，+1 过热/自满侧）
+# tag = 作用标签（来自研究和核对）；timing = 前瞻 / 同步 / 幅度
+INDICATORS = [
+    dict(id="vix", f="vol", name="VIX", col="vix", item="gf_vix", dp=1, core=True, tag="能衡量幅度", timing="同步",
+         what="标普 500 期权隐含的未来 30 天波动，也就是大盘保险的价格。", mood="越高说明越多人愿意花钱防下跌；20 正常，30 以上是恐慌。",
+         use="衡量之后一个月波动幅度最准；在底部和低点同步出现，对顶部没有信息；对半导体自己的涨跌没有反应。"),
+    dict(id="vixspike", f="vol", name="VIX 跳升", col="vixr50", item="gf_vixspike", dp=2, core=True, tag="只作描述", timing="领先约 2 周",
+         what="VIX 相对自己 50 日均值的倍数。", mood="≥ 1.4 倍说明保险价格在短时间里被抢高，不受各年代 VIX 基准高低影响。",
+         use="历次底部几乎都到过极端，中位数在最终低点前两周左右；平时也常亮，要和价格位置一起看。"),
+    dict(id="inv", f="vol", name="期限倒挂 VIX÷VIX3M", col="t3", item="gf_inv", dp=3, core=True, tag="只作描述", timing="领先约 2 周",
+         what="近月保险和 3 个月保险的价格比。", mood="≥ 1 倒挂：担心的是这几天就要发生的事；< 0.85 很陡：很放心。",
+         use="恐慌顶点几乎都伴随倒挂，倒挂解除是恐慌退潮的条件之一。"),
+    dict(id="t9", f="vol", name="VIX9D÷VIX", col="t9", dp=3, core=False, tag="只作描述", timing="领先约 2 周",
+         what="9 天期 VIX 和 30 天期 VIX 的比。", mood="≥ 1 说明眼前的风险被定价得比一个月还贵。", use="和倒挂同类，更灵敏也更吵。",
+         light=lambda r: -1 if r.t9 >= 1 else 0),
+    dict(id="credit", f="vol", name="Baa 利差 20 日走阔", col="baa20", item="gf_credit", dp=0, unit="bp", core=True, tag="有历史支持", timing="同步",
+         what="穆迪 Baa 公司债减 10 年期国债的利差，20 天里走阔了多少基点。", mood="≥ 20bp 说明压力从股票扩散到了信用市场。",
+         use="唯一单独就两段都成立的恐惧项；在低点当天或之后几天到极端。"),
+    dict(id="hyief", f="vol", name="HYG÷IEF 20 日", col="hyief20", item="gf_hyief", dp=2, unit="%", core=True, tag="只作描述", timing="同步",
+         what="高收益债 ETF 相对国债 ETF 20 天的涨跌（含分红）。", mood="跌超 2% 是信用明显收紧。", use="比 Baa 利差快，和它互相印证。"),
+    dict(id="vxn", f="vol", name="VXN（纳指）", col="vxn", dp=1, core=False, tag="能衡量幅度", timing="同步",
+         what="纳指 100 期权隐含的 30 天波动。", mood="和 VIX 同源，平常约是 VIX 的 1.2 倍。", use="用来折算半导体的隐含波动（没有自己的长期期权历史）；不单独进温度。",
+         light=lambda r: -1 if r.vxn >= 36 else 0),
+    dict(id="pc10", f="pos", name="股票认沽/认购比 10 日均", col="pc10", dp=3, core=True, tag="只作描述", timing="底部同步、顶部领先约 3 周",
+         what="股票期权里认沽成交量 ÷ 认购成交量，10 天平均。", mood="高 = 很多人买保护或看空；低 = 大量买认购追涨。",
+         use="唯一在顶和底都共通的东西：历次底部到历史最高 10%，顶部前三周到最低 15%；换成纳指、标普自己的顶底也一样。",
+         light=lambda r: -1 if r.pc_pct >= 90 else 1 if r.pc_pct <= 15 else 0),
+    dict(id="pcjump", f="pos", name="认沽/认购 ÷ 近一年中位数", col="pcjump", item="gf_pcjump", dp=2, core=True, tag="只作描述", timing="同步",
+         what="认沽/认购比和自己近一年常态的倍数。", mood="≥ 1.3 倍是突然大量买保护。", use="避开 2020 年后散户买认购带来的常态下移，比绝对分位更能识别最近的恐慌。"),
+    dict(id="bb", f="pos", name="3 倍做多÷做空成交额", col="bb", dp=2, core=True, tag="只作描述", timing="顶底共通，样本少",
+         what="SOXL 成交额 ÷ SOXS 成交额，10 日均（2017 年起）。", mood="历史最高 10% 是散户狂热加杠杆；最低 10% 是撤杠杆。",
+         use="和认沽/认购比一起构成独立的仓位因子；只有 3–4 次顶底可对照。", light=lambda r: 1 if r.bb_pct >= 90 else -1 if r.bb_pct <= 10 else 0),
+    dict(id="ddv", f="px", name="回撤 ÷ 长期波动", col="ddv", dp=2, core=True, tag="价格位置", timing="—",
+         what="距一年高点的回撤，除以自己的长期年化波动。", mood="≤ −0.6 回调（相当于标普跌 10%），≤ −1.2 重伤（相当于标普跌 20%）。",
+         use="对照格的纵轴；跌深时恐惧有没有定价决定之后好坏。", light=lambda r: -1 if r.pos >= 2 else 0),
+    dict(id="extv", f="px", name="离 200 日线 ÷ 长期波动", col="extv", item="gh_ext", dp=2, core=True, tag="和预期相反", timing="同步",
+         what="价格离 200 日线多远，按自己的波动折算。", mood="超过 1 倍是延伸，追涨资金集中。",
+         use="33 个品种里延伸之后平均反而继续涨（动量延续），所以只说明脆弱；200 日线下方才是风险信号。"),
+    dict(id="z20", f="px", name="20 日速度（Z 分数）", col="z20", dp=1, core=True, tag="只作描述", timing="底部领先约 2 周",
+         what="20 日涨跌 ÷（长期日波动 × √20）。", mood="≤ −2 急跌，≥ +2 急涨。", use="历次底部几乎都到过极端，中位数在最终低点前两周。",
+         light=lambda r: -1 if r.z20 <= -2 else 1 if r.z20 >= 2 else 0),
+    dict(id="rsi", f="px", name="RSI(14)", col="rsi", dp=0, core=True, tag="只作描述", timing="底部领先约 2 周",
+         what="14 日相对强弱。", mood="≤ 30 超卖，≥ 70 超买。", use="在顶底附近都常见，但跌得一样深时对之后没有额外信息。",
+         light=lambda r: -1 if r.rsi <= 30 else 1 if r.rsi >= 70 else 0),
+    dict(id="br50", f="px", name="成分股在 50 日线上方 %", col="br_pct50", item="gs_washout", dp=0, unit="%", core=True, tag="只作描述", timing="底部领先约 3 周、顶部领先约 6 周",
+         what="29 只半导体成分股里站在 50 日线上方的比例。", mood="≤ 10% 是全面杀跌；指数在高位时它先回落，是上涨变窄。",
+         use="领先最久的东西：峰值中位数在价格高点前 40 天，谷底在最终低点前 20 天；也是对半导体自己的涨跌反应最大的指标。"),
+    dict(id="brdrop", f="px", name="参与度比 60 日峰值回落", col="br_drop60", item="gh_narrow", dp=0, unit="点", core=True, tag="只作描述", timing="顶部领先",
+         what="成分股 50 日线上方比例比自己 60 日里的峰值低了几个百分点。", mood="指数离高点 5% 以内时回落 ≥ 20 点，是参与度先于价格走。",
+         use="第六轮把「上涨变窄」改成这个定义；顶部结构状态用它。"),
+    dict(id="br200", f="px", name="成分股在 200 日线上方 %", col="br_pct200", dp=0, unit="%", core=False, tag="只作描述", timing="同步",
+         what="成分股里站在 200 日线上方的比例。", mood="越低越多股票处在长期下跌趋势。", use="大半是价格的回声（R² 0.82），只作参考。"),
+    dict(id="nhnl", f="px", name="60 日新高减新低", col="br_nhnl", dp=0, core=False, tag="只作描述", timing="领先",
+         what="创 60 日新高的成分股家数减创新低的家数。", mood="大负数是普跌，大正数是普涨。", use="和 50 日线上方比例同类，底噪更高。"),
+    dict(id="rsp", f="px", name="等权 ÷ 市值加权 60 日", col="rsp60", dp=1, unit="%", core=False, tag="只作描述", timing="顶部跨指数共通",
+         what="等权标普相对市值加权标普 60 天的相对表现。", mood="跑输 ≥ 2% 说明上涨只靠少数大票。", use="纳指、标普自己的顶部 71–100% 出现过。"),
+    dict(id="kz20", f="px", name="KOSPI 20 日速度", col="kz20", item="gs_korea", dp=1, core=False, tag="只作描述", timing="同步",
+         what="KOSPI 20 日涨跌的 Z 分数。", mood="≤ −2 是韩国市场急跌。", use="三星、海力士所在的市场有没有跟着恐慌。"),
+    dict(id="relv", f="px", name="SMH 相对成交量", col="smh_relv", dp=2, unit="倍", core=False, tag="只作描述", timing="两头都放量",
+         what="SMH 当天成交量 ÷ 50 日均量。", mood="≥ 2 倍是放量。", use="顶和底都放量，说明有事发生，不说明方向。"),
+    dict(id="udv", f="px", name="SMH 涨跌日量比", col="smh_udv", dp=2, core=False, tag="只作描述", timing="领先约 3 周",
+         what="20 天里上涨日成交量 ÷ 下跌日成交量。", mood="< 0.8 卖盘主导，> 1.2 买盘主导。", use="对半导体自己的涨跌有反应，底部常先到极端。"),
+    dict(id="acc", f="px", name="10 日加速度", col="acc", dp=1, core=False, tag="只作描述", timing="变化，不是状态",
+         what="这 10 天的涨跌减前 10 天的涨跌，按波动折算。", mood="大负数是下跌在加速。", use="它描述变化，顶底附近本身不极端。"),
+]
+IND_BY_ID = {x["id"]: x for x in INDICATORS}
+FAST_PCT = 2     # 5 日变化在自己历史里最快的 2% 算"急"（沿用情绪分速度的惯例）
+
+
+def _ind_light(x, r):
+    if "light" in x:
+        try:
+            v = x["light"](r)
+            return 0 if v is None or not np.isfinite(float(v)) else int(v)
+        except Exception:
+            return 0
+    if "item" in x:
+        v = r.get(x["item"])
+        if v is None or not np.isfinite(v) or v < 0.8:
+            return 0
+        return 1 if x["item"].startswith("gh_") else -1
+    return 0
+
+
+def indicator_table(M):
+    """每个登记的指标：今天、昨天、5 天前、历史分位、5 日变化的分位（只用当天以前）、亮灯。"""
+    out = []
+    r, r1 = M.iloc[-1], M.iloc[-2]
+    for x in INDICATORS:
+        col = x["col"]
+        if col not in M or M[col].notna().sum() < 300:
+            continue
+        s = M[col].astype(float)
+        pct = exp_pct(s)
+        chg = exp_pct(s.diff(5))
+        row = {"id": x["id"], "f": x["f"], "name": x["name"], "what": x["what"], "mood": x["mood"], "use": x["use"], "tag": x["tag"], "timing": x["timing"],
+               "core": bool(x.get("core")), "dp": x.get("dp", 2), "unit": x.get("unit", ""),
+               "v": r6(s.iloc[-1], 4), "v1": r6(s.iloc[-2], 4), "v5": r6(s.iloc[-6], 4) if len(s) > 6 else None,
+               "pct": r6(pct.iloc[-1], 0) if len(pct) and pct.index[-1] == M.index[-1] else None,
+               "chg": r6(chg.iloc[-1], 0) if len(chg) and chg.index[-1] == M.index[-1] else None,
+               "light": _ind_light(x, r), "light1": _ind_light(x, r1)}
+        row["fast"] = 0 if row["chg"] is None else -1 if row["chg"] <= FAST_PCT else 1 if row["chg"] >= 100 - FAST_PCT else 0
+        out.append(row)
+    return out
+
+
+def changes_today(M, rows, fac, st):
+    """今天动了什么：状态变化、灯新亮或熄灭、因子大动、变化最快的指标。只作描述。"""
+    out = []
+    if st and st.get("days") == 1 and st.get("prev"):
+        out.append({"k": "state", "t": f"进入「{st['name']}」（昨天是「{st['prev']}」）"})
+    fv = lambda x: f"{x['v']:.{x['dp']}f}{x['unit']}" if x["v"] is not None else "—"
+    for x in rows:
+        if x["light"] != x["light1"]:
+            if x["light"]:
+                out.append({"k": "on", "t": f"「{x['name']}」亮了：{fv(x)}" + (f"（历史 {x['pct']:.0f}% 分位）" if x["pct"] is not None else ""), "side": x["light"]})
+            else:
+                out.append({"k": "off", "t": f"「{x['name']}」熄灭：{fv(x)}", "side": x["light1"]})
+    for k, f in fac.items():
+        if f.get("d5") is not None and abs(f["d5"]) >= 20:
+            out.append({"k": "factor", "t": f"{f['name']} 5 天 {'+' if f['d5'] > 0 else '−'}{abs(f['d5']):.0f}，现在{f['word']}", "side": -1 if (f["d5"] < 0) == FACTORS[k]["two"] else 1})
+    for x in rows:
+        if x["fast"] and x["v5"] is not None:
+            out.append({"k": "fast", "t": f"「{x['name']}」5 天{'降' if x['fast'] < 0 else '升'}得是自己历史上最快的 {FAST_PCT}%：{x['v5']:.{x['dp']}f} → {x['v']:.{x['dp']}f}", "side": 0})
+    return out[:8]
+
+
+def factors_now(M):
+    r = M.iloc[-1]
+    out = {}
+    for k, f in FACTORS.items():
+        col = "fac_" + k
+        v = num(r[col])
+        items = []
+        for it in f["fear"] + f["greed"]:
+            if it in EXTRA_ITEMS:
+                nm, rng = EXTRA_ITEMS[it]
+            else:
+                kind = {"gf": "fear", "gs": "sell", "gh": "hot"}[it[:2]]
+                nm, rng = next(((n, rg) for key, n, rg, _ in GAUGES[kind]["items"] if GPFX[kind] + key == it), (it, ""))
+            items.append([nm, None if num(r[it]) is None else round(num(r[it]) * 100), rng, "恐惧侧" if it in f["fear"] else "过热侧" if k == "px" else "自满侧"])
+        w = M[col].iloc[-252:]
+        out[k] = {"name": f["name"], "q": f["q"], "two": f["two"], "how": f["how"], "v": None if v is None else round(v), "word": factor_word(k, v),
+                  "pct": r6(r[col + "_pct"], 0), "d5": r6(r[col] - M[col].iloc[-6], 0) if len(M) > 6 else None,
+                  "hi1y": r6(w.max(), 0), "lo1y": r6(w.min(), 0), "items": items}
+    return out
+
+
+# ---------------------------------------------------------------- 宏观背景（第六轮，折叠，只作背景）
+# 检验过（docs/审查/2026-10-23_流动性利率和前瞻性.md）：流动性对之后 20–60 天涨跌没有前瞻性；10 年国债 60 日上行只在 2015 年后有点信号。不进任何判断。
+MACRO = [("nl", "净流动性", "十亿美元", "美联储总资产 − 国库账户 − 逆回购。常被画成和股指一致，那是两条趋势线的水平相关（+0.66）；13 周变化对之后 60 天：2015 年后 +0.20，2015 年前 −0.12，全样本 0。"),
+         ("y10", "10 年国债", "%", "60 日上行最快的时候，2015 年后之后 60 天偏差（−12%，13 次），2015 年前相反。只作背景。"),
+         ("curve", "期限利差 10 年 − 2 年", "bp", "负值是倒挂。对之后涨跌没有稳定关系。"),
+         ("move", "债券波动 MOVE", "", "和 VIX 一样衡量之后的波动幅度（相关 0.65 / 0.34），不说明方向。"),
+         ("dxy", "美元指数", "", "20 日上行 2015 年后略偏空（−0.15），弱。")]
+
+
+def macro_series(D, M):
+    idx = M.index
+    get = lambda k: D[k].c if k in D else None
+    def al(s, lag=1):
+        return align(s, idx, limit=14).shift(lag) if s is not None else pd.Series(np.nan, index=idx)
+    wal, tga, rrp = get("WALCL"), get("WTREGEN"), get("RRPONTSYD")
+    nl = None
+    if wal is not None and tga is not None:
+        w = wal / 1000                                   # WALCL 和 WTREGEN 都是百万美元，RRPONTSYD 是十亿美元；统一成十亿
+        t_ = tga.reindex(w.index, method="ffill") / 1000
+        # 逆回购为 0 的日子在 vol_history.csv 里被滤掉了（只收正数），所以只取 4 天以内的值，取不到就是 0
+        r_ = rrp.reindex(w.index, method="ffill", tolerance=pd.Timedelta(days=4)).fillna(0) if rrp is not None else 0
+        nl = (w - t_ - r_).dropna()
+    S = {"nl": al(nl, 2), "y10": al(get("DGS10")), "curve": (al(get("DGS10")) - al(get("DGS2"))) * 100, "move": al(get("^MOVE")), "dxy": al(get("DX-Y.NYB"))}
+    S["nl13"] = (S["nl"] - S["nl"].shift(65)) / al(wal / 1000 if wal is not None else None, 2) * 100
+    S["y10d60"] = (S["y10"] - S["y10"].shift(60)) * 100
+    start = idx.searchsorted(pd.Timestamp("2003-01-01"))
+    ks = list(range(start, len(idx), 5)) + ([len(idx) - 1] if (len(idx) - 1 - start) % 5 else [])
+    ser = {k: [r6(S[k].iloc[i], 2) for i in ks] for k in ("nl", "y10", "curve", "move", "dxy", "nl13")}
+    if all(all(v is None for v in vals) for vals in ser.values()):
+        return None
+    now = {}
+    for k, name, unit, note in MACRO:
+        s = S[k]
+        p = exp_pct(s)
+        now[k] = {"name": name, "unit": unit, "note": note, "v": r6(s.iloc[-1], 2), "pct": r6(p.iloc[-1], 0) if len(p) and p.index[-1] == idx[-1] else None,
+                  "d20": r6(s.iloc[-1] - s.iloc[-21], 2) if len(s) > 21 else None}
+    now["nl13"] = {"name": "净流动性 13 周变化（占总资产）", "unit": "%", "v": r6(S["nl13"].iloc[-1], 2)}
+    now["y10d60"] = {"name": "10 年国债 60 日变化", "unit": "bp", "v": r6(S["y10d60"].iloc[-1], 0)}
+    return {"d": [idx[i].strftime("%Y-%m-%d") for i in ks], "ser": ser, "now": now,
+            "note": "检验过：这些东西对之后 20–60 天的涨跌没有两段都成立的前瞻性（净流动性扩张、10 年国债上行只在 2015 年后有点信号，2015 年前相反），只作背景，不进任何判断。详见 docs/审查/2026-10-23_流动性利率和前瞻性.md。"}
 
 
 def market(D):
@@ -482,17 +790,15 @@ def market(D):
     M["t3"] = align(t3, idx)
     M["t3_pct"] = align(exp_pct(t3), idx) if t3 is not None else np.nan
     M["t9"] = align(t9, idx)
-    for k, col in (("^VXN", "vxn"), ("^VVIX", "vvix"), ("^SKEW", "skew")):
-        s = get(k)
-        M[col] = align(s, idx)
-        M[col + "_pct"] = align(exp_pct(s), idx) if s is not None else np.nan
+    vxn = get("^VXN")
+    M["vxn"] = align(vxn, idx)
+    M["vxn_pct"] = align(exp_pct(vxn), idx) if vxn is not None else np.nan
+    M["vixr50"] = M.vix / M.vix50
 
     pc = get("PC_EQ")
     pc10 = pc.rolling(10, min_periods=10).mean() if pc is not None else None
     M["pc10"] = align(pc10, idx)
     M["pc_pct"] = align(exp_pct(pc10), idx) if pc10 is not None else np.nan
-    pci = get("PC_IDX")
-    M["pcidx10"] = align(pci.rolling(10, min_periods=10).mean(), idx) if pci is not None else np.nan
 
     baa = get("BAA10Y")
     M["baa"] = align(baa, idx)
@@ -528,6 +834,8 @@ def market(D):
     for k in B.columns:
         M["br_" + k] = B[k]
     M["br_thrust"] = M.br_thrust.fillna(False).astype(bool)
+    M["br_nhnl"] = M.br_nh - M.br_nl
+    M["br_drop60"] = M.br_pct50.rolling(60, min_periods=20).max() - M.br_pct50      # 参与度比自己 60 日峰值回落了几个百分点
 
     # ---- 恐惧定价（底部清单）
     yes = lambda s: s.fillna(False).astype(bool)
@@ -545,7 +853,7 @@ def market(D):
     M["r_ext"] = yes(M.extv >= 1)
     M["r_divtop"] = recent(M.div_top, 20) & near(0.05)
     M["r_shrink"] = recent(M.smh_shrink_hi, 20) & near(0.05)
-    M["r_narrow"] = near(0.03) & (yes(M.br_pct50 < 60) | yes(M.rsp60 <= -2))
+    M["r_narrow"] = near(0.05) & (yes(M.br_drop60 >= 20) | yes(M.rsp60 <= -2))
     M["r_frenzy"] = yes(M.pc_pct <= 15) | yes(M.bb_pct >= 90)
     M["r_spotvol"] = near(0.05) & yes(M.vix >= M.vixmin20 * 1.2)
     M["frag_n"] = sum(M["r_" + k].astype(int) for k in FRAG)
@@ -566,21 +874,19 @@ def market(D):
     M["eq_spx"] = M.dd / M.lv * M.spx_lv          # 按波动折算成"相当于标普跌了多少"
 
     # ---- 三个温度（GAUGES）
-    vxn = get("^VXN")
-    M["vxn50"] = align(vxn.rolling(50, min_periods=50).mean(), idx) if vxn is not None else np.nan
     M["pcjump"] = align(pc10 / pc10.rolling(250, min_periods=120).median(), idx) if pc10 is not None else np.nan
     ks = D.get("^KS11")
-    if ks is not None:
-        kf = px_features(ks)
-        M["kvol"] = align(np.log(ks.c).diff().rolling(20, min_periods=20).std() * SQ / kf.lv, idx)
-    else:
-        M["kvol"] = np.nan
+    M["kz20"] = align(px_features(ks).z20, idx) if ks is not None else np.nan      # KOSPI 20 日 Z 分数（按自己的长期波动）
     for k, v in gauge_items(M).items():
         M[k] = v
     G = gauges_from(M)
     for kind in GAUGES:
         M[GCOL[kind]] = G[kind]
         M[GCOL[kind] + "_pct"] = exp_pct(M[GCOL[kind]]).reindex(M.index)
+    # ---- 三个因子（第六轮，显示用；同一批项目按机制重分）
+    for k, v in factors_from(M).items():
+        M["fac_" + k] = v
+        M["fac_" + k + "_pct"] = exp_pct(M["fac_" + k]).reindex(M.index)
     M["score"] = G["score"]                             # 见 SCORE_BANDS
     M["score_pct"] = exp_pct(M.score).reindex(M.index)
     # 情绪变化的速度：10 天变化在自己历史里的分位（只用当天以前）。K 线标签"急冷 / 急升" = 最快的 2%（第三轮的惯例）
@@ -596,6 +902,7 @@ def market(D):
         M.loc[x.index, "fear_norm"] = x.expanding(min_periods=60).median()
         M.loc[x.index, "fear_xp"] = x.expanding(min_periods=60).rank(pct=True) * 100
     M["fear_x"] = M.g_fear - M.fear_norm
+    M["state"] = cycle_state(M)                          # 周期位置（第六轮，只作描述）
     return M
 
 
@@ -1243,11 +1550,15 @@ def build(D=None, options=None):
     daily["snames"] = names
     daily["fearn"], daily["fearx"] = [r6(x, 0) for x in M.fear_norm], [r6(x, 0) for x in M.fear_x]
     hd = headline(M, grid)
-    gs = hd["gauges"]
-    ms["three"].append({"k": "mood", "t": "情绪走到哪一步", "big": hd["title"], "unit": "价格位置 × 恐惧定价",
-                        "text": f"恐惧定价 {hd['fear_n']}/5 条，脆弱度 {hd['frag_n']}/6 条。{CELL_TEXT[(hd['pos'], hd['fear'])]}",
-                        "sub": "三个温度（只作描述）：" + "，".join(f"{g['name']} {g['v'] if g['v'] is not None else '—'}" for g in gs.values()) + "。",
-                        "label": None, "jump": "overview", "tone": "fear" if hd["fear"] == 2 else "greed" if hd["frag_n"] >= 4 else "calm"})
+    # 第六轮：因子、指标表、周期位置、今天动了什么、宏观背景
+    fac = factors_now(M)
+    ind = indicator_table(M)
+    st = state_now(M)
+    changes = changes_today(M, ind, fac, st)
+    for k in FACTORS:
+        daily["f" + k] = [r6(x, 0) for x in M["fac_" + k]]
+    daily["state"] = [None if not np.isfinite(x) else int(x) for x in M.state]
+    daily["stnames"] = STATE_N
     daily["siv"], daily["rv"], daily["reg"] = [r6(x, 1) for x in S["siv"]], [r6(x, 1) for x in S["rv"]], [None if not np.isfinite(x) else int(x) for x in S["reg"]]
     smh_iv = {row[0]: row[1] for row in ((options or {}).get("hist") or {}).get("SMH", [])}
     chg = M.c.pct_change() * 100
@@ -1257,13 +1568,13 @@ def build(D=None, options=None):
         q, d = M.iloc[k], days[k]
         table.append([d, r6(q.c, 2), r6(chg.iloc[k], 2), r6(z1.iloc[k], 1), r6(S["rv"].iloc[k], 1), r6(q.vix, 1), r6(q.vxn, 1), r6(S["siv"].iloc[k], 1),
                       r6(smh_iv.get(d), 1), r6(q.g_fear, 0), r6(q.g_sell, 0), r6(q.g_hot, 0), int(q.fear_n), int(q.frag_n),
-                      daily["reg"][k], daily["pos"][k], r6(q.score, 0), r6(q.fear_x, 0)])
+                      daily["reg"][k], daily["pos"][k], r6(q.score, 0), r6(q.fear_x, 0),
+                      r6(q.fac_vol, 0), r6(q.fac_pos, 0), r6(q.fac_px, 0), daily["state"][k]])
     vixtab = []
     for nm, v, p, note in (("VIX", r.vix, r.vix_pct, vix_zone(r.vix)), ("VIX ÷ VIX3M", r.t3, r.t3_pct, term_zone(r.t3)),
                            ("VIX9D ÷ VIX", r.t9, np.nan, "远低于 1 说明眼前很放心" if np.isfinite(r.t9) and r.t9 < 0.9 else "接近或高于 1：眼前的风险被定价得更贵" if np.isfinite(r.t9) else "—"),
-                           ("VXN（纳指）", r.vxn, r.vxn_pct, vix_zone(r.vxn)), ("VVIX", r.vvix, r.vvix_pct, "VIX 自己的波动，急升常领先 VIX"),
-                           ("SKEW", r.skew, r.skew_pct, "深度虚值认沽的贵贱，牛市里也常偏高"),
-                           ("股票认沽/认购比 10 日均", r.pc10, r.pc_pct, "越高越多人买保护"), ("指数认沽/认购比 10 日均", r.pcidx10, np.nan, "机构对冲为主，只作参考"),
+                           ("VXN（纳指）", r.vxn, r.vxn_pct, vix_zone(r.vxn)),
+                           ("股票认沽/认购比 10 日均", r.pc10, r.pc_pct, "越高越多人买保护"),
                            ("Baa 信用利差 %", r.baa, r.baa_pct, f"20 天 {f2(r.baa20, 0)}bp"), ("高收益利差 %", r.hyoas, np.nan, f"20 天 {f2(r.hyoas20, 0)}bp（只有近 3 年）"),
                            ("HYG÷IEF 20 日 %", r.hyief20, np.nan, "含分红；跌超 2% 是明显收紧")):
         vixtab.append([nm, r6(v, 3), r6(p, 0), note])
@@ -1273,20 +1584,25 @@ def build(D=None, options=None):
         "now": {"vix": r6(r.vix, 2), "t3": r6(r.t3, 3), "pc10": r6(r.pc10, 3), "baa": r6(r.baa, 2), "dd": r6(r.dd), "eq": r6(r.eq_spx),
                 "lv": r6(r.lv), "spx_lv": r6(r.spx_lv), "pct50": r6(r.br_pct50, 1), "fear_avail": int(r.fear_avail)},
         "options": options, "measure": ms, "table": table, "score": score_now(M, eps_rows), "oread": options_read(M, options, ms["moves"]),
+        "factors": fac, "indicators": ind, "state": st, "changes": changes, "macro": macro_series(D, M),
+        "factor_defs": {k: {"name": f["name"], "q": f["q"], "two": f["two"], "words": f["words"], "how": f["how"]} for k, f in FACTORS.items()},
+        "state_defs": [{"id": a, "name": b, "text": c, "tone": d} for a, b, c, d in STATES],
     }, M
 
 
 # ---------------------------------------------------------------- 样本外记录
 LOG_CSV = os.path.join(HERE, "daily_log.csv")
-LOG_COLS = ["date", "built", "score", "g_fear", "g_sell", "g_hot", "pos", "fear_n", "frag_n", "clear", "fear_on", "frag_on", "sox", "dd", "eq_spx", "z20", "rsi",
+LOG_COLS = ["date", "built", "score", "g_fear", "g_sell", "g_hot", "fvol", "fpos", "fpx", "state", "pos", "fear_n", "frag_n", "clear", "fear_on", "frag_on", "sox", "dd", "eq_spx", "z20", "rsi",
             "vix", "t3", "pc10", "baa", "baa20", "pct50", "pct200"]
 
 
 def _log_row(r, d, built):
     row = {"date": d, "built": built, "pos": POS_N[int(r.pos)] if np.isfinite(r.pos) else "", "fear_n": int(r.fear_n), "frag_n": int(r.frag_n),
-           "clear": int(bool(r.t_clear)), "fear_on": " ".join(k for k in FEAR if r["f_" + k]), "frag_on": " ".join(k for k in FRAG if r["r_" + k])}
+           "clear": int(bool(r.t_clear)), "fear_on": " ".join(k for k in FEAR if r["f_" + k]), "frag_on": " ".join(k for k in FRAG if r["r_" + k]),
+           "state": STATE_N[int(r.state)] if np.isfinite(r.state) else ""}
     for k, col, dp in (("sox", "c", 2), ("dd", "dd", 4), ("eq_spx", "eq_spx", 4), ("z20", "z20", 2), ("rsi", "rsi", 1), ("vix", "vix", 2), ("t3", "t3", 3),
-                       ("pc10", "pc10", 3), ("baa", "baa", 2), ("baa20", "baa20", 0), ("pct50", "br_pct50", 1), ("pct200", "br_pct200", 1), ("g_fear", "g_fear", 0), ("g_sell", "g_sell", 0), ("g_hot", "g_hot", 0), ("score", "score", 0)):
+                       ("pc10", "pc10", 3), ("baa", "baa", 2), ("baa20", "baa20", 0), ("pct50", "br_pct50", 1), ("pct200", "br_pct200", 1), ("g_fear", "g_fear", 0), ("g_sell", "g_sell", 0), ("g_hot", "g_hot", 0), ("score", "score", 0),
+                       ("fvol", "fac_vol", 0), ("fpos", "fac_pos", 0), ("fpx", "fac_px", 0)):
         v = r6(r[col], dp)
         row[k] = "" if v is None else v
     return row
@@ -1326,6 +1642,14 @@ def append_log(M, built):
                 rows[ds] = _log_row(M.loc[t], ds, "补记 " + built)
     if not _closing_row(rows.get(d), d):        # 收盘后已经记过的那一行不再覆盖：保留"当时看到的读数"
         rows[d] = _log_row(M.iloc[-1], d, built)
+    # 后来才加的列（情绪分、因子、状态）在旧行里是空的：用全量计算回填空格子，不碰已有的值
+    for ds, row in rows.items():
+        t = pd.Timestamp(ds)
+        if t in M.index and any(row.get(k, "") == "" for k in LOG_COLS if k != "built"):
+            full = _log_row(M.loc[t], ds, row.get("built", ""))
+            for k in LOG_COLS:
+                if k != "built" and row.get(k, "") == "" and full.get(k, "") != "":
+                    row[k] = full[k]
     tmp = LOG_CSV + ".tmp"
     with open(tmp, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=LOG_COLS, extrasaction="ignore")
@@ -1336,7 +1660,7 @@ def append_log(M, built):
 
 
 # ---------------------------------------------------------------- 自检
-CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "score_pct", "score_spd", "fear_norm", "fear_x", "fear_xp", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
+CHECK_COLS = ["g_fear", "g_sell", "g_hot", "score", "fac_vol", "fac_pos", "fac_px", "fac_vol_pct", "state", "kz20", "br_drop60", "vixr50", "gh_narrow", "gs_korea", "score_pct", "score_spd", "fear_norm", "fear_x", "fear_xp", "g_fear_pct", "g_sell_pct", "dd", "ddv", "extv", "z20", "acc", "rsi", "swing", "brk", "vix_pct", "t3_pct", "pc_pct", "baa_pct", "bb_pct", "br_pct50", "br_pct200",
               "br_zema", "fear_n", "frag_n", "pos", "eq_spx", "t_clear", "t_thrust", "t_climax", "smh_relv", "lv"]
 
 
@@ -1375,6 +1699,13 @@ if __name__ == "__main__":
     print(f"恐惧定价 {h['fear_n']}/5，脆弱度 {h['frag_n']}/6")
     for g in h["gauges"].values():
         print(f"{g['name']} {g['v']}：{g['text']}｜" + "、".join(f"{a} {b}" for a, b, *_ in g["items"]))
+    for k, f in data["factors"].items():
+        print(f"{f['name']} {f['v']}：{f['word']}｜" + "、".join(f"{a} {b}" for a, b, *_ in f["items"]))
+    if data["state"]:
+        s = data["state"]
+        print(f"周期位置：{s['name']}（第 {s['days']} 天）{' · '.join(s['sub'])}")
+    for c in data["changes"]:
+        print("  变化：", c["t"])
     for L in data["layers"]:
         print(f"- {L['name']}：{L['text']}")
     for it in data["items"]:

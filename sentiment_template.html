@@ -6,11 +6,11 @@
 <script>try { if (localStorage.getItem("ts-theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}</script>
 <style>
 /* 默认白色，不跟随系统外观；页头按钮切换深色（记在浏览器里）。
-   一屏总览（对照格 + 清单 + 六层读数）→ K 线 → 期权 → 参与度 → 历次对照 → 说明。所有计算来自 engine.py 生成的数据。 */
+   第六轮：第一屏 = 情绪分 + 三个因子 + 周期位置 + 两件能衡量的事，紧接 K 线；其余收进折叠块。所有计算来自 engine.py 生成的数据。 */
 :root{
   --bg:#f3f4f1; --panel:#ffffff; --ink:#15181b; --ink-2:#434b50; --ink-3:#646c71; --line:#d6d9d5; --grid:#e8eae6;
   --fear:#2f6fb5; --greed:#d4562a; --neutral:#a3a9a6; --accent:#2f6fb5; --accent-soft:rgba(47,111,181,.12);
-  --alert:#c43a2c; --watch:#c4860a; --ok:#2e8a62;
+  --alert:#c43a2c; --watch:#c4860a; --ok:#2e8a62; --violet:#6d4fc2;
   --pos:var(--ok); --neg:var(--alert);
   --f-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   --f-data:"JetBrains Mono",ui-monospace,"SF Mono",Consolas,monospace;
@@ -18,7 +18,7 @@
 :root[data-theme="dark"]{
   --bg:#101315; --panel:#191d20; --ink:#eef0ee; --ink-2:#bfc5c9; --ink-3:#979fa3; --line:#2b3034; --grid:#24292c;
   --fear:#5b9be6; --greed:#f07a4a; --neutral:#6c7377; --accent:#5b9be6; --accent-soft:rgba(91,155,230,.16);
-  --alert:#e5594b; --watch:#e0a52a; --ok:#43a87c; color-scheme:dark}
+  --alert:#e5594b; --watch:#e0a52a; --ok:#43a87c; --violet:#a58cf0; color-scheme:dark}
 :root[data-updown="red"]{--pos:var(--alert);--neg:var(--ok)}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;margin:0;
@@ -45,7 +45,7 @@ header.top h1{font-weight:900;font-size:clamp(26px,6vw,34px);line-height:1.15}
 
 /* navigation */
 html{scroll-behavior:smooth}
-section[id]{scroll-margin-top:58px}
+section[id],details[id]{scroll-margin-top:58px}
 .snav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:-12px 0 -10px;
   background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .snav::-webkit-scrollbar{display:none}
@@ -112,7 +112,7 @@ section[id]{scroll-margin-top:58px}
 
 /* daily table */
 .dctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12.5px;color:var(--ink-3)}
-.dtab table{min-width:1040px}
+.dtab table{min-width:1120px}
 .dtab th,.dtab td{padding:6px 7px}
 .dtab thead th{vertical-align:bottom;line-height:1.35;white-space:normal}
 .dtab th.grp{color:var(--ink-2);font-weight:700;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:.06em}
@@ -315,6 +315,80 @@ details.more>summary:focus-visible{outline:2px solid var(--ink);outline-offset:2
 .field input:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .field .hint{font-size:12px;color:var(--ink-3)}
 footer{font-size:12px;color:var(--ink-3);line-height:1.7;max-width:84ch}
+
+/* 第六轮：三个因子 */
+.facs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-bottom:12px}
+.fac{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--fc);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0;--fc:var(--neutral)}
+.fac.fear{--fc:var(--fear)} .fac.greed{--fc:var(--greed)}
+.fac-h{display:flex;align-items:center;gap:4px;font-size:15px}
+.fac-h b{font-weight:900}
+.fac-h .fac-d{margin-left:auto;font-size:12px;color:var(--ink-3);text-align:right}
+.fac-q{font-size:12.5px;color:var(--ink-2);margin-top:-6px}
+.fac-top{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap}
+.fac-v{font-family:var(--f-data);font-size:40px;font-weight:600;line-height:1;color:var(--fc)}
+.fac-w{font-size:18px;font-weight:900;color:var(--fc)}
+.fbar{position:relative;height:10px;border-radius:5px;background:var(--grid)}
+.fbar i{position:absolute;top:0;bottom:0;border-radius:5px}
+.fbar s{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--ink-3)}
+.fscale{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-top:3px}
+.fsp{width:100%;height:auto;display:block}
+details.ind{border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+details.ind>summary{cursor:pointer;font-size:13px;color:var(--accent);list-style:none}
+details.ind>summary::-webkit-details-marker{display:none}
+details.ind>summary::before{content:"▸ ";color:var(--ink-3)}
+details.ind[open]>summary::before{content:"▾ "}
+details.ind>summary:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ir{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line)}
+.irs .ir:first-child{border-top:0}
+.ir-h{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;font-size:13.5px}
+.ir-h .tag{margin-left:0}
+.ir-h .dim{font-size:12px}
+.ir-m{min-width:0}
+.ir-m p{margin:3px 0 0;font-size:12.5px;line-height:1.6}
+.ir-n{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-size:12px;color:var(--ink-3);text-align:right;min-width:5.5em}
+.ir-n b{font-size:14px;color:var(--ink)}
+.fast{color:var(--watch);font-weight:700}
+.lt{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--neutral);display:inline-block;flex:none;margin-top:5px;background:var(--panel)}
+.lt.fear{background:var(--fear);border-color:var(--fear)} .lt.greed{background:var(--greed);border-color:var(--greed)}
+
+/* 第六轮：周期位置 */
+.cyc{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--cc);border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:12px 26px;margin-bottom:12px;--cc:var(--neutral)}
+@media (max-width:760px){.cyc{grid-template-columns:1fr}}
+.cyc-n{font-size:clamp(24px,5.5vw,30px);font-weight:900;line-height:1.2;color:var(--cc);margin-top:4px}
+.cyc-t{margin:6px 0 0;font-size:14px;line-height:1.7;font-weight:500}
+.cyc-r{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cyc-r svg{width:100%;height:auto;display:block}
+.cyc-leg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;color:var(--ink-2)}
+.cyc-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.chgh{font-size:12.5px;font-weight:700;color:var(--ink-3);margin-top:12px;letter-spacing:.04em}
+.chg{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.55}
+.chg li{display:flex;gap:8px;align-items:flex-start}
+.kread{font-size:13px;color:var(--ink-2);line-height:1.7;background:var(--bg);border-radius:10px;padding:8px 12px}
+.kread b{color:var(--ink)}
+.stale{font-size:13.5px;color:var(--ink);background:color-mix(in srgb,var(--alert) 12%,var(--panel));border:1px solid var(--alert);border-radius:10px;padding:10px 14px}
+
+/* 第六轮：折叠层 */
+.folds{display:flex;flex-direction:column;gap:10px}
+.foldnote{font-size:12.5px;color:var(--ink-3);margin:0}
+details.fold{background:var(--panel);border:1px solid var(--line);border-radius:14px;min-width:0}
+details.fold>summary{cursor:pointer;list-style:none;padding:13px 18px;display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary b{font-size:16px;font-weight:900}
+details.fold>summary b::before{content:"▸ ";color:var(--ink-3);font-weight:400}
+details.fold[open]>summary b::before{content:"▾ "}
+details.fold>summary span{font-size:12.5px;color:var(--ink-2)}
+details.fold>summary:focus-visible{outline:2px solid var(--ink);outline-offset:-2px;border-radius:14px}
+details.fold>.fbody{padding:2px 18px 18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:560px){details.fold>summary{padding:12px 14px}details.fold>.fbody{padding:2px 12px 14px}}
+.fbody>.hero{border:0;padding:0;background:none;border-radius:0}
+.macs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px}
+.mac{background:var(--bg);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.mac-h{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
+.mac-v{font-size:18px;font-weight:600}
+.mac-v .dim{font-size:12px;font-weight:400;font-family:var(--f-body)}
+.mac svg{width:100%;height:auto;display:block}
+.dict h3{font-size:14px;margin:14px 0 6px}
+.dict .gloss dd span{display:block}
 </style>
 
 <div class="wrap" id="app">
@@ -325,14 +399,34 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.7;max-width:84ch}
     </div>
     <div class="hright"><button type="button" class="themebtn" id="themebtn" aria-label="切换浅色或深色">深色</button><div class="stamp" id="stamp"></div></div>
   </header>
-  <nav class="snav" aria-label="页面导航"><a href="#today">总览</a><a href="#daily-sec">每日一览</a><a href="#temp-sec">温度</a><a href="#kline-sec">K 线</a><a href="#options-sec">期权</a><a href="#breadth-sec">参与度</a><a href="#history-sec">历次对照</a><a href="#method-sec">说明</a></nav>
+  <nav class="snav" aria-label="页面导航"><a href="#today">今天</a><a href="#kline-sec">K 线</a><a href="#overview">对照格和清单</a><a href="#daily-sec">每日一览</a><a href="#options-sec">期权</a><a href="#temp-sec">温度</a><a href="#breadth-sec">参与度</a><a href="#macro-sec">宏观背景</a><a href="#history-sec">历次对照</a><a href="#method-sec">说明和词典</a></nav>
 
-  <section id="today" aria-label="今天该知道的三件事">
+  <div class="stale" id="stale" hidden></div>
+
+  <section id="today" aria-label="今天的情绪">
     <div class="score" id="score"></div>
+    <div class="facs" id="factors"></div>
+    <div class="cyc" id="cycle"></div>
     <div class="three" id="three"></div>
   </section>
 
-  <section class="hero" id="overview" aria-label="现在的情绪">
+  <section id="kline-sec">
+    <div class="sec-head"><h2>K 线 × 情绪</h2><p>价格、成交量和情绪画在同一张图上。拖动平移，Ctrl＋滚轮或双指缩放；可以自己画水平线和趋势线。</p></div>
+    <div class="kbox" id="kline">
+      <div class="kread"><b>怎么对照着看</b>：价格区最下面的色带是每天的<b>周期位置</b>（在"色带"里可以换成情绪分）；副图默认是<b>情绪分</b>（0 以上橙、以下蓝），可以换成<b>三个因子</b>。看同样的颜色在历史上出现时价格后来怎么走。鼠标移到某一天，下面的面板会列出那天的周期位置、因子和之后的走势。</div>
+      <div class="ktools" id="ktools"></div>
+      <div class="kwrap"><canvas id="kc" tabindex="0" role="img" aria-label="K 线、均线、成交量和副图，可点选和画线"></canvas><div class="klegend" id="klegend"></div><div class="kpl" id="kvl"></div><div class="kpl" id="ksl"></div><div class="khint" id="khint" hidden></div></div>
+      <input type="range" class="kpan" id="kpan" step="1" aria-label="左右移动 K 线（不用拖图）">
+      <div class="kkey" id="kkey"></div>
+      <div class="kma" id="kma"></div>
+      <div class="kpanel" id="kpanel" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <div class="folds">
+    <p class="foldnote">下面是细节，默认收起，点标题展开。</p>
+    <details class="fold" id="overview"><summary><b>对照格和清单</b><span>价格位置 × 恐惧定价、底部清单、恐慌退潮、脆弱度、三个温度、六层读数</span></summary>
+      <div class="fbody"><div class="hero">
     <div id="head"></div>
     <div class="gauges" id="gauges"></div>
     <div class="hero-grid">
@@ -350,48 +444,22 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.7;max-width:84ch}
       <div class="h3">六层读数 <em>前四层描述"在哪一段"，第五层是核心信号</em></div>
       <div class="lyrs" id="layers"></div>
     </div>
-  </section>
-
-  <section id="daily-sec">
-    <div class="sec-head"><h2>每日一览</h2><p>每天一行：涨跌、波动、隐含波动和情绪读数。颜色越深越极端，表头的 i 是说明。点一行，K 线跳到那一天。</p></div>
-    <div id="dtab"></div>
-  </section>
-
-  <section id="temp-sec">
-    <div class="sec-head"><h2>温度逐日查看</h2><p>鼠标移到图上就能看那一天，点一下固定（手机上点图或拖下面的滑块），看任意一天的恐慌温度或过热温度、每一项的读数、当时半导体在哪个位置，以及之后怎么走。键盘左右键一天一天移。</p></div>
-    <div class="histbox" id="temp"></div>
-  </section>
-
-  <section id="kline-sec">
-    <div class="sec-head"><h2>K 线 · 量能 · 动量</h2><p>价格、均线和成交量在一起看。虚线是自动识别的摆动高点、低点连线（趋势结构）。可以自己画水平线和趋势线。拖动平移，Ctrl＋滚轮或双指缩放。</p></div>
-    <div class="kbox" id="kline">
-      <div class="ktools" id="ktools"></div>
-      <div class="kwrap"><canvas id="kc" tabindex="0" role="img" aria-label="K 线、均线、成交量和副图，可点选和画线"></canvas><div class="klegend" id="klegend"></div><div class="kpl" id="kvl"></div><div class="kpl" id="ksl"></div><div class="khint" id="khint" hidden></div></div>
-      <input type="range" class="kpan" id="kpan" step="1" aria-label="左右移动 K 线（不用拖图）">
-      <div class="kkey" id="kkey"></div>
-      <div class="kma" id="kma"></div>
-      <div class="kpanel" id="kpanel" aria-live="polite"></div>
-    </div>
-  </section>
-
-  <section id="options-sec">
-    <div class="sec-head"><h2>期权怎么看</h2><p>期权是给未来的风险定价，信用利差是给违约风险定价。先看五个白话问题，详细数据在下面折叠里。数值都和自己的全部历史比（只用当天以前的数据）。</p></div>
-    <div id="opts"></div>
-  </section>
-
-  <section id="breadth-sec">
-    <div class="sec-head"><h2>参与度：多少半导体股在跟</h2><p>29 只半导体成分股。指数创新高、多数股票却没跟上，是上涨变窄；几乎全部跌破均线，是全面杀跌。</p></div>
-    <div id="breadth"></div>
-  </section>
-
-  <section id="history-sec">
-    <div class="sec-head"><h2>历次大跌对照</h2><p>费城半导体指数 1995 年以来每一次跌超 25%，按高点对齐。表里是每次高点前亮过哪些脆弱项、低点附近亮过哪些恐惧项。</p></div>
-    <div id="cycles"></div>
-  </section>
-
-  <section class="method" id="method-sec">
-    <div class="sec-head"><h2>说明</h2><p>完整版见「规则说明.md」，检验结果见「研究结论.md」（在本机文件夹或 GitHub 仓库里）。</p></div>
-    <div id="method"></div>
+      </div></div></details>
+    <details class="fold" id="daily-sec"><summary><b>每日一览</b><span>最近 20 或 60 天每天一行：涨跌、波动、因子、周期位置。点一行跳到 K 线那一天</span></summary>
+      <div class="fbody"><div id="dtab"></div></div></details>
+    <details class="fold" id="options-sec"><summary><b>期权怎么看</b><span>五个白话问题、各标的接下来可能波动多大、期权链和主动买卖</span></summary>
+      <div class="fbody"><div id="opts"></div></div></details>
+    <details class="fold" id="temp-sec"><summary><b>温度逐日查看</b><span>任意一天的定价恐慌、抛售恐慌、过热温度和每一项读数</span></summary>
+      <div class="fbody"><p class="anote" style="margin:0">鼠标移到图上就能看那一天，点一下固定（手机上点图或拖下面的滑块）。键盘左右键一天一天移。</p><div class="histbox" id="temp"></div></div></details>
+    <details class="fold" id="breadth-sec"><summary><b>参与度</b><span>29 只半导体成分股有多少在跟。指数在高位、跟着涨的股票变少，是参与度先走</span></summary>
+      <div class="fbody"><div id="breadth"></div></div></details>
+    <details class="fold" id="macro-sec"><summary><b>宏观背景</b><span>流动性、国债、债券波动、美元。检验过对之后涨跌没有前瞻性，只作背景</span></summary>
+      <div class="fbody"><div id="macro"></div></div></details>
+    <details class="fold" id="history-sec"><summary><b>历次大跌对照</b><span>1995 年以来每次跌超 25%，按高点对齐；每次高点前亮过的脆弱项、低点附近亮过的恐惧项</span></summary>
+      <div class="fbody"><div id="cycles"></div></div></details>
+    <details class="fold method" id="method-sec"><summary><b>说明和指标词典</b><span>每个指标是什么、代表什么情绪、有什么用；规则怎么检验</span></summary>
+      <div class="fbody"><p class="anote" style="margin:0">完整版见「规则说明.md」，检验结果见「研究结论.md」（在 GitHub 仓库里）。</p>
+        <div id="method"></div><div class="dict" id="dict"></div>
     <details class="more"><summary>散户问卷（手动记录，不参与任何计算）</summary>
       <div class="survey">
         <div class="field"><label for="in-fg">CNN 恐惧贪婪指数</label><input id="in-fg" type="number" inputmode="decimal" step="any" placeholder="0–100"><span class="hint">25 以下极度恐惧，75 以上极度贪婪</span></div>
@@ -399,7 +467,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.7;max-width:84ch}
         <div class="field"><label for="in-sdate">问卷数据日期</label><input id="in-sdate" type="text" placeholder="例如 10月17日"><span class="hint">只保存在这台设备的浏览器里</span></div>
       </div>
     </details>
-  </section>
+      </div></details>
+  </div>
   <footer id="foot"></footer>
 </div>
 
@@ -434,6 +503,9 @@ function boot(RAW) {
     clear: "恐慌退潮", thrust: "普涨回归", climax: "恐慌抛售" };
   const D = RAW.daily || { d: [] }, DMAP = new Map(D.d.map((d, i) => [d, i]));
   const LBL = l => l === "有历史支持" ? '<span class="tag ok">有历史支持</span>' : l === "两段都相反" ? '<span class="tag rev">和预期相反</span>' : l ? '<span class="tag">只作描述</span>' : "";
+  // 周期位置的颜色：[颜色变量, 不透明度]（engine.STATES 的 id）。平稳不着色
+  const ST_STYLE = { panic: ["--fear", .9], ebb: ["--ok", .85], retest: ["--watch", .85], deep0: ["--alert", .7], deep1: ["--watch", .4], top: ["--greed", .75], ext: ["--greed", .4], thrust: ["--ok", .4] };
+  const stStyle = s => s == null ? null : ST_STYLE[((RAW.state_defs || [])[s] || {}).id] || null;
 
   // ---------- tooltips: 术语旁的 i，鼠标悬停或点按显示 ----------
   const tip = t => `<button type="button" class="tip" data-tip="${esc(t)}" aria-label="说明">i</button>`;
@@ -455,7 +527,7 @@ function boot(RAW) {
   document.addEventListener("mouseout", e => { const t = e.target.closest && e.target.closest(".tip"); if (t && tipFor === t && !tipPin) hideTip(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
   window.addEventListener("scroll", () => { if (!tipBox.hidden) hideTip(); }, { passive: true });
-  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-go]"); if (b) { const el = $(b.dataset.go); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } });
+  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-go]"); if (b) { const el = $(b.dataset.go); if (el) { if (el.tagName === "DETAILS") el.open = true; el.scrollIntoView({ behavior: "smooth", block: "start" }); } } });
 
   // ---------- 小走势图：鼠标移上去显示那天的数 ----------
   function sparkHover(svg, W, k0, len, row) {
@@ -516,6 +588,93 @@ function boot(RAW) {
       <button type="button" class="jd" data-go="${esc(c.jump)}">${go[c.jump] || "去看看"} →</button></article>`).join("");
   }
 
+  // ---------- 三个因子（第六轮） ----------
+  function renderFactors() {
+    const F = RAW.factors, box = $("factors");
+    if (!F) { box.innerHTML = '<div class="quiet">因子未取得数据。</div>'; return; }
+    const IND = RAW.indicators || [], n = D.d.length, k0 = Math.max(0, n - 252);
+    const unit = u => !u ? "" : u === "%" || u === "bp" ? u : " " + u;
+    const fv = (x, v) => v == null ? "—" : fmt(v, x.dp) + unit(x.unit);
+    const tagCls = s => s === "有历史支持" || s === "能衡量幅度" || s === "能衡量风险" ? "ok" : s === "和预期相反" ? "rev" : "";
+    const ir = x => {
+      const lt = x.light < 0 ? "fear" : x.light > 0 ? "greed" : "";
+      const fast = x.fast ? `<span class="fast">5 日${x.fast < 0 ? "降" : "升"}得是历史最快的 2%</span>` : "";
+      return `<div class="ir"><span class="lt ${lt}" title="${lt ? "亮着：到了登记的恐慌或过热水平" : "没亮"}"></span>
+        <div class="ir-m"><div class="ir-h"><b>${esc(x.name)}</b>${tip(x.what)}<span class="tag ${tagCls(x.tag)}">${esc(x.tag)}</span><span class="dim">${esc(x.timing)}${x.core ? "" : " · 参考"}</span></div>
+          <p>${esc(x.mood)}</p><p class="dim">${esc(x.use)}</p></div>
+        <div class="ir-n"><b class="num">${fv(x, x.v)}</b><span>${x.pct == null ? "" : "历史分位 " + x.pct + "%"}</span><span>5 天前 ${fv(x, x.v5)}</span>${fast}</div></div>`;
+    };
+    const card = k => {
+      const f = F[k]; if (!f) return "";
+      const v = f.v, tone = v == null ? "" : f.two ? (v <= -20 ? "fear" : v >= 20 ? "greed" : "") : (v >= 40 ? "fear" : "");
+      const W = 300, H = 50, key = "f" + k, xs = []; for (let i = k0; i < n; i++) xs.push(D[key] ? D[key][i] : null);
+      const lo = f.two ? -100 : 0, X = j => 2 + j / Math.max(1, xs.length - 1) * (W - 4), Y = u => 4 + (100 - u) / (100 - lo) * (H - 8);
+      let path = "", on = false; xs.forEach((x, j) => { if (x == null) { on = false; return; } path += (on ? "L" : "M") + X(j).toFixed(1) + " " + Y(x).toFixed(1); on = true; });
+      const last = xs.length - 1;
+      const bar = v == null ? "" : f.two ? `<i style="left:${v < 0 ? 50 + v / 2 : 50}%;width:${Math.abs(v) / 2}%;background:var(--${v < 0 ? "fear" : "greed"})"></i><s style="left:50%"></s>` : `<i style="left:0;width:${v}%;background:var(--fear)"></i>`;
+      const scale = f.two ? "<span>−100 恐惧</span><span>0</span><span>+100 自满或过热</span>" : "<span>0 平静</span><span>50</span><span>100 恐慌</span>";
+      const d5 = f.d5 == null ? "" : ` · 5 天 ${f.d5 >= 0 ? "+" : "−"}${Math.abs(f.d5)}`;
+      const its = f.items.map(([nm, x, rng, side], j) => `${f.two && side !== (f.items[j - 1] || [])[3] ? `<div class="ggrp">${esc(side)}</div>` : ""}<div class="git" style="--gc:var(--${side === "恐惧侧" ? "fear" : "greed"})" title="${esc(nm)}：${esc(rng)}，到右端 = 100"><em>${esc(nm)}</em><i><b style="width:${x || 0}%"></b></i><span>${x == null ? "—" : x}</span></div>`).join("");
+      const rows = IND.filter(x => x.f === k).sort((a, b) => b.core - a.core);
+      return `<article class="fac ${tone}">
+        <div class="fac-h"><b>${esc(f.name)}</b>${tip(f.how + " 只作描述，不是买卖信号。")}<span class="fac-d">${f.pct == null ? "" : "历史分位 " + f.pct + "%"}${d5}</span></div>
+        <div class="fac-q">${esc(f.q)}</div>
+        <div class="fac-top"><span class="fac-v">${v == null ? "—" : f.two ? sgn(v, 0) : v}</span><span class="fac-w">${esc(f.word)}</span></div>
+        <div><div class="fbar">${bar}</div><div class="fscale">${scale}</div></div>
+        <svg class="fsp" data-f="${k}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(f.name)}最近一年的走势">${f.two ? `<line x1="2" x2="${W - 2}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)" stroke-dasharray="3 3"/>` : `<line x1="2" x2="${W - 2}" y1="${Y(60)}" y2="${Y(60)}" stroke="var(--ink-3)" stroke-dasharray="3 3" opacity=".6"/>`}<path d="${path}" fill="none" stroke="var(--fc)" stroke-width="1.6" stroke-linejoin="round"/>${xs[last] != null ? `<circle cx="${X(last)}" cy="${Y(xs[last])}" r="3.5" fill="var(--fc)"/>` : ""}<text x="4" y="${H - 4}" font-size="10" fill="var(--ink-3)">一年前</text></svg>
+        <div class="gits">${its}</div>
+        ${rows.length ? `<details class="ind"><summary>${rows.length} 个指标：各代表什么情绪、有什么用</summary><div class="irs">${rows.map(ir).join("")}</div></details>` : ""}</article>`;
+    };
+    box.innerHTML = ["vol", "pos", "px"].map(card).join("");
+    box.querySelectorAll("svg[data-f]").forEach(svg => { const k = svg.dataset.f, f = F[k];
+      sparkHover(svg, 300, k0, n - k0, i => { const x = D["f" + k][i]; return `${esc(D.d[i])}<br>${esc(f.name)} <b>${x == null ? "—" : f.two ? sgn(x, 0) : x}</b>`; }); });
+  }
+
+  // ---------- 周期位置（第六轮） ----------
+  function renderCycle() {
+    const S = RAW.state, box = $("cycle");
+    if (!S || !D.state) { box.innerHTML = '<div class="quiet">周期位置未取得数据。</div>'; return; }
+    const ss = ST_STYLE[S.id];
+    box.style.setProperty("--cc", ss ? `var(${ss[0]})` : "var(--neutral)");
+    const a = ((S.hist || {})[S.id] || {}).all || {};
+    const hist = a.n ? `1995 年以来进入这个状态 ${a.n} 次（相邻 10 天只算一次），之后 60 天中位数 ${pct(a.f60)}${a.ex60 == null ? "" : `，比同样跌深的日子 ${pct(a.ex60)}`}。只作描述，不是预测。` : "";
+    const n = D.d.length, k0 = Math.max(0, n - 252), len = n - k0, W = (box.clientWidth || 800) < 600 ? 380 : 560, PT = 44, PH = 56, RY = PT + PH + 8, RH = 13, H = RY + RH + 18;   // 手机上画布窄一点，字才不会缩得太小
+    const X = j => 4 + j / Math.max(1, len - 1) * (W - 8), bw = (W - 8) / Math.max(1, len - 1);
+    let lo = Infinity, hi = -Infinity; for (let i = k0; i < n; i++) { const v = D.sox[i]; if (v) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+    const Yp = v => PT + (hi - v) / Math.max(1e-9, hi - lo) * PH;
+    let path = "", on = false; for (let i = k0; i < n; i++) { const v = D.sox[i]; if (!v) { on = false; continue; } path += (on ? "L" : "M") + X(i - k0).toFixed(1) + " " + Yp(v).toFixed(1); on = true; }
+    let rib = "", seen = new Set();
+    for (let i = k0; i < n; i++) {
+      const s = D.state[i], st = stStyle(s); if (s != null) seen.add(s); if (!st) continue;
+      let j = i; while (j + 1 < n && D.state[j + 1] === s) j++;        // 同一状态连成一段
+      rib += `<rect x="${(X(i - k0) - bw / 2).toFixed(1)}" y="${RY}" width="${((j - i + 1) * bw + 0.4).toFixed(1)}" height="${RH}" fill="var(${st[0]})" fill-opacity="${st[1]}"/>`; i = j;
+    }
+    const ev = (S.seq || []).filter(e => e.days < len).map(e => ({ ...e, x: X(len - 1 - e.days) })).sort((p, q) => p.x - q.x);
+    const ends = [-1e9, -1e9, -1e9]; let mk = "";
+    ev.forEach(e => {
+      const lab = `${e.k} ${e.days === 0 ? "今天" : e.days + " 天前"}`, w = lab.replace(/[\x00-\xff]/g, "").length * 11 + lab.replace(/[^\x00-\xff]/g, "").length * 6.5 + 6;
+      let r = 0; while (r < 2 && e.x - w / 2 < ends[r]) r++; ends[r] = e.x + w / 2 + 4;
+      const ty = 11 + r * 13, anchor = e.x < w / 2 ? "start" : e.x > W - w / 2 ? "end" : "middle", py = D.sox[n - 1 - e.days];
+      mk += `<line x1="${e.x.toFixed(1)}" x2="${e.x.toFixed(1)}" y1="${ty + 3}" y2="${RY + RH}" stroke="var(--ink-3)" stroke-dasharray="2 2" opacity=".7"/>${py ? `<circle cx="${e.x.toFixed(1)}" cy="${Yp(py).toFixed(1)}" r="3" fill="var(--ink)"/>` : ""}<text x="${e.x.toFixed(1)}" y="${ty}" font-size="11" text-anchor="${anchor}" fill="var(--ink-2)">${esc(lab)}</text>`;
+    });
+    let ticks = "", lastM = "", lastX = -99;
+    for (let i = k0; i < n; i++) { const m = D.d[i].slice(0, 7); if (m !== lastM) { const x = X(i - k0); if (lastM && x - lastX > 40 && x < W - 16) { ticks += `<text x="${x.toFixed(1)}" y="${H - 3}" font-size="10" text-anchor="middle" fill="var(--ink-3)">${+m.slice(5)}月</text>`; lastX = x; } lastM = m; } }
+    const defs = RAW.state_defs || [];
+    const leg = [...seen].sort((p, q) => p - q).map(s => { const st = stStyle(s); return `<span><i style="background:${st ? `var(${st[0]});opacity:${st[1]}` : "var(--grid)"}"></i>${esc((defs[s] || {}).name || "")}</span>`; }).join("");
+    const C = RAW.changes || [];
+    const chg = C.length ? `<ul class="chg">${C.map(c => `<li><span class="lt ${c.side < 0 ? "fear" : c.side > 0 ? "greed" : ""}"></span><span>${esc(c.t)}</span></li>`).join("")}</ul>` : '<p class="sc-n" style="margin-top:4px">今天没有指标的灯亮起或熄灭，也没有急变。</p>';
+    box.innerHTML = `<div>
+        <div class="sc-h"><span>周期位置 ${tip("把历次顶底重复出现的顺序写成状态。底部：普跌和 VIX 跳升先到极端，恐惧和信用后到，磨出来的底最后一次低点恐惧更少。顶部：参与度先走、仓位自满、价格最后。按先后判断，同一天只算一种。只作描述。")}</span><span class="sc-d">第 ${S.days} 天${S.prev && S.days < 400 ? ` · 之前：${esc(S.prev)}` : ""}</span></div>
+        <div class="cyc-n">${esc(S.name)}</div>${(S.sub || []).length ? `<div class="chips" style="margin-top:4px">${S.sub.map(x => `<span class="chip w">${esc(x)}</span>`).join("")}</div>` : ""}
+        <p class="cyc-t">${esc(S.text)}</p>
+        ${hist ? `<p class="sc-n" style="margin-top:6px">${esc(hist)}</p>` : ""}
+        <div class="chgh">今天动了什么</div>${chg}</div>
+      <div class="cyc-r"><span class="eyebrow">最近一年：费城半导体、每天的周期位置，以及几件事各在几天前到极端</span>
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="最近一年的周期位置色带和几个指标到极端的时间"><path d="${path}" fill="none" stroke="var(--ink-2)" stroke-width="1.4" stroke-linejoin="round"/>${mk}<rect x="4" y="${RY}" width="${W - 8}" height="${RH}" fill="var(--grid)" opacity=".5"/>${rib}${ticks}</svg>
+        <div class="cyc-leg">${leg}</div>
+        <p class="sc-n">底部常见的顺序是参与度谷底和 VIX 峰值先到、价格低点后到；顶部常见的顺序是参与度峰值先到（中位数约 40 天）、认沽/认购比低位其次、价格高点最后。</p></div>`;
+  }
+
   // ---------- 每日一览 ----------
   let dayN = 20; try { dayN = +localStorage.getItem("ts-dayn") === 60 ? 60 : 20; } catch (e) {}
   function renderDaily() {
@@ -529,24 +688,25 @@ function boot(RAW) {
     const REG = ["上 · 上", "上 · 下", "下 · 上", "下 · 下"];
     const num = (v, dp, suf = "") => v == null ? '<span class="dim">—</span>' : fmt(v, dp) + suf;
     const body = rows.map((r, k) => {
-      const [d, c, ch, z, rv, vix, vxn, siv, smh, gf, gs, gh, fe, fr, reg, pos, sc, fx] = r;
+      const [d, c, ch, z, rv, vix, vxn, siv, smh, gf, gs, gh, fe, fr, reg, pos, sc, fx, fv, fp, fq, st] = r;
+      const sst = stStyle(st);
       const nxt = rows[k + 1], wkEnd = nxt && new Date(d).getUTCDay() < new Date(nxt[0]).getUTCDay();
       const zc = z == null ? "" : sh(z < 0 ? "--neg" : "--pos", cl((Math.abs(z) - 1) / 2) * 0.8);
       return `<tr tabindex="0" data-d="${d}"${wkEnd ? ' class="wk-end"' : ""}><td>${d.slice(5)}</td>
         <td class="gl">${num(c, c >= 1000 ? 0 : 2)}</td><td${cP(ch)}>${ch == null ? "—" : sgn(ch, 2) + "%"}</td><td${zc}>${z == null ? "—" : sgn(z, 1)}</td>
         <td class="gl"${sh("--fear", rel(rv, R.rv))}>${num(rv, 0, "%")}</td><td${sh("--fear", rel(siv, R.siv))}>${num(siv, 0, "%")}</td><td${sh("--fear", rel(smh, R.smh))}>${num(smh, 0, "%")}</td>
         <td${sh("--fear", cl((vix - 14) / 26) * 0.8)}>${num(vix, 1)}</td><td${sh("--fear", rel(vxn, R.vxn))}>${num(vxn, 1)}</td>
-        <td class="gl"${sc == null ? "" : sh(sc < 0 ? "--fear" : "--greed", Math.abs(sc) / 100)}><b>${sc == null ? "—" : sgn(sc, 0)}</b></td><td${sh("--fear", gf / 100)}>${num(gf, 0)}</td><td${fx == null ? "" : sh(fx > 0 ? "--fear" : "--greed", Math.abs(fx) / 60)}>${fx == null ? "—" : sgn(fx, 0)}</td><td${sh("--alert", gs / 100)}>${num(gs, 0)}</td><td${sh("--greed", gh / 100)}>${num(gh, 0)}</td>
+        <td class="gl"${sc == null ? "" : sh(sc < 0 ? "--fear" : "--greed", Math.abs(sc) / 100)}><b>${sc == null ? "—" : sgn(sc, 0)}</b></td><td${sh("--fear", (fv || 0) / 100)}>${num(fv, 0)}</td><td${fp == null ? "" : sh(fp < 0 ? "--fear" : "--greed", Math.abs(fp) / 100)}>${fp == null ? "—" : sgn(fp, 0)}</td><td${fq == null ? "" : sh(fq < 0 ? "--fear" : "--greed", Math.abs(fq) / 100)}>${fq == null ? "—" : sgn(fq, 0)}</td><td${fx == null ? "" : sh(fx > 0 ? "--fear" : "--greed", Math.abs(fx) / 60)}>${fx == null ? "—" : sgn(fx, 0)}</td>
         <td${sh("--fear", fe >= 3 ? 0.8 : fe ? 0.3 : 0)}>${fe}</td><td${sh("--greed", fr >= 4 ? 0.8 : fr >= 2 ? 0.3 : 0)}>${fr}</td>
-        <td class="gl"${sh("--alert", reg >= 2 ? 0.45 : 0)}>${reg == null ? "—" : REG[reg]}</td><td${sh(pos === 0 ? "--greed" : "--alert", pos === 3 ? 0.6 : pos === 2 ? 0.25 : pos === 0 ? 0.35 : 0)}>${pos == null ? "—" : POS_N[pos]}</td></tr>`;
+        <td class="gl"${sst ? sh(sst[0], sst[1] * 0.75) : ""}>${st == null ? "—" : esc((D.stnames || [])[st] || "")}</td><td${sh("--alert", reg >= 2 ? 0.45 : 0)}>${reg == null ? "—" : REG[reg]}</td><td${sh(pos === 0 ? "--greed" : "--alert", pos === 3 ? 0.6 : pos === 2 ? 0.25 : pos === 0 ? 0.35 : 0)}>${pos == null ? "—" : POS_N[pos]}</td></tr>`;
     }).join("");
     box.innerHTML = `<div class="dctl"><span>显示</span>${[20, 60].map(n => `<button type="button" class="kbtn${dayN === n ? " on" : ""}" data-dn="${n}">${n} 天</button>`).join("")}<span>最新在上；同一周之间有粗线分隔。</span></div>
       <div class="wk dtab"><table><thead>
-        <tr><th rowspan="2">日期</th><th colspan="3" class="grp gl">费城半导体</th><th colspan="5" class="grp gl">波动（年化）</th><th colspan="7" class="grp gl">情绪</th><th colspan="2" class="grp gl">状态</th></tr>
+        <tr><th rowspan="2">日期</th><th colspan="3" class="grp gl">费城半导体</th><th colspan="5" class="grp gl">波动（年化）</th><th colspan="7" class="grp gl">情绪</th><th colspan="3" class="grp gl">状态</th></tr>
         <tr><th class="gl">收盘</th><th>涨跌</th><th>几倍波动${tip("当天涨跌 ÷ 长期的日常波动。超过 ±2 算大波动，大约每 20 天才有一次。")}</th>
           <th class="gl">实际 21 日${tip("过去 21 个交易日真实走出来的波动，年化。")}</th><th>半导体隐含${tip("VXN × 半导体/纳指长期波动比，近似半导体期权的 30 天隐含波动。历史检验：能衡量之后一个月的波动幅度。")}</th><th>SMH 隐含${tip("SMH 期权链的 30 天隐含波动，2026-10-19 起自己积累。")}</th><th>VIX${tip("标普 500 期权的 30 天隐含波动。20 左右正常，30 以上恐慌。")}</th><th>VXN${tip("纳指 100 期权的 30 天隐含波动。")}</th>
-          <th class="gl">情绪分${tip("−100 极度恐慌到 +100 过热 = 过热 − (定价恐慌 + 抛售恐慌) ÷ 2。只作描述。")}</th><th>定价恐慌${tip("0–100，有没有人花钱为下跌买保险。只作描述。")}</th><th>超出价格${tip("定价恐慌减去回撤深度相近的过去日子里的正常水平。正数 = 恐惧比跌幅更重，负数 = 价格跌了恐惧没跟上。")}</th><th>抛售恐慌${tip("0–100，股票被卖得多狠。只作描述。")}</th><th>过热${tip("0–100，脆弱度 6 条连续化。只作描述。")}</th><th>恐惧${tip("恐惧定价清单亮了几条（共 5 条）。跌深时亮到 3 条以上，历史上之后 60 天比同样跌深的日子好。")}</th><th>脆弱${tip("脆弱度清单亮了几条（共 6 条）。4 条以上历史上之后偏弱，但样本少。")}</th>
-          <th class="gl">200 · 50 日线${tip("价格在 200 日线、50 日线的上方还是下方。跌破 200 日线后，之后一个月波动更大、再跌一段的概率更高（33 个品种两段历史都成立），但不说明方向。")}</th><th>价格位置${tip("回撤 ÷ 长期年化波动：回调 ≈ 标普跌 10%，重伤 ≈ 标普跌 20%；延伸 = 离 200 日线超过 1 倍年化波动。")}</th></tr>
+          <th class="gl">情绪分${tip("−100 极度恐慌到 +100 过热 = 过热 − (定价恐慌 + 抛售恐慌) ÷ 2。只作描述。")}</th><th>波动恐惧${tip("0–100，有没有人花钱为下跌买保险（期权和信用）。只作描述。")}</th><th>仓位${tip("−100 恐惧对冲到 +100 自满加杠杆（认沽/认购比、3 倍杠杆多空）。只作描述。")}</th><th>价格与参与度${tip("−100 普跌到 +100 过热（成分股参与度、延伸、背离等）。只作描述。")}</th><th>超出价格${tip("定价恐慌减去回撤深度相近的过去日子里的正常水平。正数 = 恐惧比跌幅更重，负数 = 价格跌了恐惧没跟上。")}</th><th>恐惧${tip("恐惧定价清单亮了几条（共 5 条）。跌深时亮到 3 条以上，历史上之后 60 天比同样跌深的日子好。")}</th><th>脆弱${tip("脆弱度清单亮了几条（共 6 条）。4 条以上历史上之后偏弱，但样本少。")}</th>
+          <th class="gl">周期位置${tip("把历次顶底重复出现的顺序写成状态，每天一种。只作描述。")}</th><th>200 · 50 日线${tip("价格在 200 日线、50 日线的上方还是下方。跌破 200 日线后，之后一个月波动更大、再跌一段的概率更高（33 个品种两段历史都成立），但不说明方向。")}</th><th>价格位置${tip("回撤 ÷ 长期年化波动：回调 ≈ 标普跌 10%，重伤 ≈ 标普跌 20%；延伸 = 离 200 日线超过 1 倍年化波动。")}</th></tr>
       </thead><tbody>${body}</tbody></table></div>`;
   }
   $("dtab").addEventListener("click", e => {
@@ -582,8 +742,8 @@ function boot(RAW) {
         <div class="gits">${g.items.map(([nm, x, rng, grp], j) => `${grp !== (g.items[j - 1] || [])[3] && kind === "fear" ? `<div class="ggrp">${esc(grp)}</div>` : ""}<div class="git" title="${esc(nm)}：${esc(rng)}，到右端 = 100"><em>${esc(nm)}</em><i><b style="width:${x || 0}%"></b></i><span>${x == null ? "—" : x}</span></div>`).join("")}</div>
         <p class="gnote">${note}</p></div>`;
     };
-    $("gauges").innerHTML = card("fear", "", "有没有人花钱为下跌买保险。每一项按离公认恐慌水平还有多远折成 0–100，先在四组（大盘期权、科技期权、期权成交、信用）里平均，再四组平均。") +
-      card("sell", "", "股票被卖得多狠：半导体普跌、散户撤杠杆、韩国剧烈波动。它描述的是抛售阶段，不是买卖信号。") +
+    $("gauges").innerHTML = card("fear", "", "有没有人花钱为下跌买保险。每一项按离公认恐慌水平还有多远折成 0–100，先在三组（大盘期权、期权成交、信用）里平均，再三组平均。") +
+      card("sell", "", "股票被卖得多狠：半导体普跌、散户撤杠杆、韩国急跌。它描述的是抛售阶段，不是买卖信号。") +
       card("hot", "", "脆弱度那 6 条同样折算后平均。到 60 以上时，之后 60 天比同样位置的日子略差（2015 年前后都是，差 1–2 个百分点），但说不出哪天见顶。") +
       `<p class="gnote" style="grid-column:1/-1">三个温度都只作描述，研究里没有稳定的预测力；两段都成立的信号仍是下面对照格里"跌深 + 恐惧清单亮 ≥ 3 条"。最有用的是看它们之间的差别：比如抛售恐慌高、定价恐慌低，说明股票被恐慌性地卖了，但还没人为恐惧付钱。</p>`;
     $("gauges").querySelectorAll("svg[data-g]").forEach(svg => { const kind = svg.dataset.g, g = G[kind];
@@ -723,7 +883,7 @@ function boot(RAW) {
         <p class="cknote">四条同时满足才算。${clr.last ? "上次：" + clr.last + "。" : ""}另外两个转折迹象：${esc(th.name || "广度推力")}${th.on ? "（今天亮着）" : th.last ? "（上次 " + th.last + "）" : ""}；${esc(cx.name || "卖出高潮")}${cx.on ? "（今天亮着）" : cx.last ? "（上次 " + cx.last + "）" : ""}。</p></div>`;
     $("list-frag").innerHTML = `
       <div class="ck frag"><div class="ckh"><b>脆弱度 · 顶部这一侧</b><span><span class="cnt">${nR}</span> / 6</span></div>${frag.map(itemRow).join("")}
-        <p class="cknote">只说明上涨在变脆，不说明哪天见顶。单条都不稳定；≥ 4 条同时亮之后表现偏差（2015 前 3 次、后 7 次，样本很少）。离 200 日线很远之后，平均反而还在涨（动量延续）。</p></div>`;
+        <p class="cknote">只说明上涨在变脆，不说明哪天见顶。单条都不稳定；≥ 4 条同时亮在 2015 年后之后偏差，2015 年前不是，只作描述（第六轮"上涨变窄"改定义后重新检验的结果）。离 200 日线很远之后，平均反而还在涨（动量延续）。</p></div>`;
   }
   function renderLayers() {
     $("layers").innerHTML = (RAW.layers || []).map(L => `<div class="lyr${L.id === "price" ? " core" : ""}"><div class="lh"><b>${esc(L.name)}</b><span>${esc(L.role)}</span></div><p>${esc(L.text)}</p>${L.nums && L.nums.length ? `<div class="ln">${L.nums.map(([k, v]) => `<span>${esc(k)} <b>${esc(v)}</b></span>`).join("")}</div>` : ""}</div>`).join("");
@@ -740,8 +900,9 @@ function boot(RAW) {
     const DEF_MA = [5, 10, 20, 50, 100, 200];
     const MA_COL = { 5: ["#c98a00", "#e8b23a"], 10: ["#c2457a", "#ed93b1"], 20: ["#6250d6", "#a49cf0"], 50: ["#2a78d6", "#5b9be6"], 100: ["#178f66", "#3cc794"], 200: ["#d9561f", "#f08a5d"] };
     const XCOL = [["#7a6f5c", "#b5a98f"], ["#4d7c8a", "#86b6c4"], ["#8a5a44", "#c9967e"], ["#5c6b2e", "#a3b56a"]];
-    const SUBS = [["score", "情绪分"], ["fearx", "超出价格的恐慌"], ["temp", "三个温度"], ["ivrv", "隐含 / 实际波动"], ["rsi", "RSI"], ["vix", "VIX"], ["t3", "VIX 期限结构"], ["breadth", "成分股广度"], ["count", "恐惧 / 脆弱条数"], ["none", "不显示"]];
-    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "score", mk: true, smk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
+    const SUBS = [["score", "情绪分"], ["factors", "三个因子"], ["fearx", "超出价格的恐慌"], ["temp", "三个温度"], ["ivrv", "隐含 / 实际波动"], ["rsi", "RSI"], ["vix", "VIX"], ["t3", "VIX 期限结构"], ["breadth", "成分股广度"], ["count", "恐惧 / 脆弱条数"], ["none", "不显示"]];
+    const cfg = Object.assign({ sym: SYMS[0].k, n: 252, mas: DEF_MA.slice(), on: { 5: 0, 10: 0, 20: 1, 50: 1, 100: 0, 200: 1 }, sub: "score", strip: "state", mk: true, smk: true, bg: true, sw: true, cone: true, redUp: false }, ld(LS, {}));
+    if (cfg.strip !== "score") cfg.strip = "state";
     if (!SYMS.some(s => s.k === cfg.sym)) cfg.sym = SYMS[0].k;
     if (!SUBS.some(s => s[0] === cfg.sub)) cfg.sub = "rsi";
     cfg.mas = [...new Set((cfg.mas || []).map(Number).filter(p => p >= 2 && p <= 400))].sort((a, b) => a - b);
@@ -832,6 +993,9 @@ function boot(RAW) {
       const s = cfg.sub;
       if (s === "none") return null;
       if (s === "score") return { lo: -100, hi: 100, lines: [-60, -20, 20, 60], area: i => dv(i, "score"), ser: [{ f: i => dv(i, "score"), col: T.ink2, w: 1.1 }], lab: "情绪分（过热 − 两个恐慌温度的平均）· 0 以上橙、以下蓝", dp: 0 };
+      if (s === "factors") return { lo: -100, hi: 100, lines: [-60, -20, 20, 60], zero: true, dp: 0,
+        ser: [{ f: i => { const v = dv(i, "fvol"); return v == null ? null : -v; }, col: T.fear, w: 1.5 }, { f: i => dv(i, "fpos"), col: T.violet, w: 1.4 }, { f: i => dv(i, "fpx"), col: T.ink, w: 1.4 }],
+        lab: "三个因子 · 向下 = 恐惧，向上 = 自满或过热：波动恐惧（蓝，只向下）/ 仓位（紫）/ 价格与参与度（黑）" };
       if (s === "fearx") return { lo: 0, hi: 100, lines: [20, 40, 60, 80], ser: [{ f: i => dv(i, "fearn"), col: T.ink3, w: 1.3 }, { f: i => dv(i, "gfear"), col: T.fear, w: 1.6 }], lab: "定价恐慌（蓝）/ 回撤深度相近时的正常水平（灰）", dp: 0 };
       if (s === "temp") return { lo: 0, hi: 100, lines: [20, 60, 80], ser: [{ f: i => dv(i, "gfear"), col: T.fear, w: 1.5 }, { f: i => dv(i, "gsell"), col: T.alert, w: 1.3 }, { f: i => dv(i, "ghot"), col: T.greed, w: 1.5 }], lab: "定价恐慌（蓝）/ 抛售恐慌（红）/ 过热温度（橙）", dp: 0 };
       if (s === "ivrv") {
@@ -863,7 +1027,7 @@ function boot(RAW) {
       if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + "px"; }
       const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
       DARK = isDark();
-      const T = { ink: tok("--ink"), ink2: tok("--ink-2"), ink3: tok("--ink-3"), line: tok("--line"), grid: tok("--grid"), fear: tok("--fear"), greed: tok("--greed"), ok: tok("--ok"), alert: tok("--alert"), accent: tok("--accent"), panel: tok("--panel") };
+      const T = { ink: tok("--ink"), ink2: tok("--ink-2"), ink3: tok("--ink-3"), line: tok("--line"), grid: tok("--grid"), fear: tok("--fear"), greed: tok("--greed"), ok: tok("--ok"), alert: tok("--alert"), accent: tok("--accent"), panel: tok("--panel"), violet: tok("--violet"), watch: tok("--watch") };
       const up = cfg.redUp ? T.alert : T.ok, dn = cfg.redUp ? T.ok : T.alert;
       const fd = tok("--f-data") || "monospace", fb = tok("--f-body") || "sans-serif";
       const AXR = W < 560 ? 54 : 64, AXB = 22, plotH = H - AXB;
@@ -894,7 +1058,23 @@ function boot(RAW) {
         if (sb === 0 || sb === 4) { g.fillStyle = `rgba(${sb === 0 ? FR : GR},${DARK ? 0.13 : 0.08})`; g.fillRect(xOf(i) - bw / 2, 0, bw + 0.6, G.pH); }
       }
       // 情绪色带：价格区底部一条，每天按情绪分着色（蓝 = 恐慌，橙 = 过热，越极端越深），极端的一段写上名字
-      if (cfg.bg) {
+      if (cfg.bg && cfg.strip === "state") {
+        // 周期位置色带：每天一种状态，同一状态连成一段，宽度够就写上名字
+        const sy = G.pH - STRIP() + 1, sh = STRIP() - 3;
+        g.fillStyle = DARK ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.035)"; g.fillRect(G.L, sy, G.R - G.L, sh);
+        g.font = "700 11px " + fb; g.textAlign = "center"; g.textBaseline = "middle";
+        for (let i = G.i0; i <= G.i1; i++) {
+          const s = dv(i, "state"); let j = i; while (j < G.i1 && dv(j + 1, "state") === s) j++;
+          const st = stStyle(s), x0 = xOf(i) - bw / 2, x1 = xOf(j) + bw / 2;
+          if (st) {
+            g.fillStyle = `rgba(${hexToRgb(tok(st[0])).join(",")},${st[1]})`; g.fillRect(x0, sy, x1 - x0 + 0.6, sh);
+            const nm = (D.stnames || [])[s] || "";
+            if (x1 - x0 >= g.measureText(nm).width + 14) { g.fillStyle = st[1] >= 0.7 ? "#fff" : T.ink; g.fillText(nm, (x0 + x1) / 2, sy + sh / 2 + 0.5); }
+          }
+          i = j;
+        }
+        g.textBaseline = "alphabetic";
+      } else if (cfg.bg) {
         const sy = G.pH - STRIP() + 1, sh = STRIP() - 3;
         g.fillStyle = DARK ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.035)"; g.fillRect(G.L, sy, G.R - G.L, sh);
         for (let i = G.i0; i <= G.i1; i++) {
@@ -1033,6 +1213,7 @@ function boot(RAW) {
         g.setLineDash([3, 4]);
         for (const v of sub.lines) { const y = Math.round(yS(v)) + 0.5; g.beginPath(); g.moveTo(G.L, y); g.lineTo(G.R, y); g.stroke(); }
         g.setLineDash([]);
+        if (sub.zero) { const y = Math.round(yS(0)) + 0.5; g.strokeStyle = T.ink3; g.beginPath(); g.moveTo(G.L, y); g.lineTo(G.R, y); g.stroke(); }
         if (sub.bars) {
           const sb = Math.max(1, Math.min(12, bw * 0.72)), y0 = yS(0);
           for (let i = G.i0; i <= G.i1; i++) {
@@ -1114,9 +1295,10 @@ function boot(RAW) {
     function legend(i) {
       const b = B[i]; if (!b) return;
       const pv = B[i - 1], ch = pv ? (b.c / pv.c - 1) * 100 : null, col = ch == null ? "var(--ink)" : ch >= 0 ? "var(--pos)" : "var(--neg)";
-      const sc = dv(i, "score"), sb = dv(i, "sband");
+      const sc = dv(i, "score"), sb = dv(i, "sband"), stI = dv(i, "state"), sts = stStyle(stI);
+      const stTxt = stI == null ? "" : `<span style="${sts ? `color:var(${sts[0]});` : ""}font-weight:700">${esc((D.stnames || [])[stI] || "")}</span>`;
       const scTxt = sc == null ? "" : `<span>情绪分 <i style="color:${sc <= -20 ? "var(--fear)" : sc >= 20 ? "var(--greed)" : "var(--ink)"};font-weight:700">${sgn(sc, 0)}</i> ${esc((D.snames || [])[sb] || "")}</span>`;
-      $("klegend").innerHTML = `<div class="l1"><b>${esc(cur.n)}</b><span class="num">${b.d}</span>${scTxt}` +
+      $("klegend").innerHTML = `<div class="l1"><b>${esc(cur.n)}</b><span class="num">${b.d}</span>${scTxt}${stTxt}` +
         (b.real ? `<span>开 <i>${fmtP(b.o)}</i></span><span>高 <i>${fmtP(b.h)}</i></span><span>低 <i>${fmtP(b.l)}</i></span>` : "") +
         `<span>收 <i style="color:${col}">${fmtP(b.c)}</i></span><span><i style="color:${col}">${ch == null ? "" : sgn(ch, 2) + "%"}</i></span>${(MK.get(b.d) || []).map(m => `<b style="color:var(--${m.col === "ok" ? "ok" : m.col === "fear" ? "fear" : m.col === "greed" ? "greed" : "alert"})">${m.t}</b>`).join(" ")}${dayState(i)}</div>` +
         `<div class="l2">${cfg.mas.filter(p => cfg.on[p]).map(p => `<span style="color:${maCol(p)}">MA${p} <i>${fmtP(MA[p][i])}</i></span>`).join("")}</div>`;
@@ -1126,6 +1308,7 @@ function boot(RAW) {
         ks.hidden = false; ks.style.top = (G.sTop + 1) + "px";
         let val = "";
         if (cfg.sub === "score") val = `${dv(i, "score") ?? "—"}`;
+        else if (cfg.sub === "factors") { const a = dv(i, "fvol"), p = dv(i, "fpos"), q = dv(i, "fpx"); val = `波动 ${a ?? "—"} · 仓位 ${p == null ? "—" : sgn(p, 0)} · 价格 ${q == null ? "—" : sgn(q, 0)}`; }
         else if (cfg.sub === "fearx") { const a = dv(i, "gfear"), b = dv(i, "fearn"); val = `${a ?? "—"} / ${b ?? "—"}${a != null && b != null ? `（${sgn(a - b, 0)}）` : ""}`; }
         else if (cfg.sub === "temp") val = `${dv(i, "gfear") ?? "—"} / ${dv(i, "gsell") ?? "—"} / ${dv(i, "ghot") ?? "—"}`;
         else if (cfg.sub === "ivrv") val = `${fmt(dv(i, "siv"), 0)}% / ${fmt(dv(i, "rv"), 0)}%`;
@@ -1167,7 +1350,7 @@ function boot(RAW) {
       const i = B.length - 1, m = maState(i);
       $("kma").innerHTML = `<span><b>均线（${B[i].d}）</b></span><span class="${m.cls}">${m.txt}</span><span>价格在 ${m.n} 条均线中的 ${m.below} 条下方</span>` +
         `<span>MA50 / MA200：${crossTxt(50, 200, i, 1000)}</span><span>MA5 / MA20：${crossTxt(5, 20, i, 120)}</span><span>趋势结构：${swingNow()}</span>`;
-      $("kkey").innerHTML = `<b>标签</b>：<b style="color:var(--fear)">恐慌</b> 大家开始花大钱买保险（恐惧指标第一次亮到 3 条） · <b style="color:var(--ok)">退潮</b> 恐慌之后保险变便宜、价格不再创新低 · <b style="color:var(--greed)">涨过头</b> 涨得太急、跟着涨的股票变少、开始有人买保护（只说明危险，不说明哪天见顶） · <b style="color:var(--alert)">抛售</b> 2 倍成交量的大跌，而且已经超卖（${cur.k === "^SOX" ? "用 SMH 的成交量" : "这个品种自己的"}）。<br><b>情绪标签</b>（可以单独关掉）：<b style="color:var(--fear)">极恐</b> 情绪分跌破 −60 · <b style="color:var(--greed)">过热</b> 情绪分升破 +60 · 空心的 <b style="color:var(--fear)">急冷</b> / <b style="color:var(--greed)">急升</b> 情绪分 10 天的变化是 1995 年以来最快的 2%（只用当天以前的数据比）。都只标每一段的第一天（相邻 10 天只算一次）。标签太挤时会缩成同色小圆点，鼠标停在那天就能看到名字。<br><b>情绪色带</b>（价格区最下面一条）：每天按情绪分着色，蓝 = 恐慌、橙 = 过热，越极端颜色越深；整段在 −60 以下或 +60 以上时，价格区也会铺一层浅色。这些都是整个半导体市场的情绪，KOSPI 等别的品种按同一天（或之前最近一个美股交易日）对照。<b>灰色小圈</b> = 自动找出的摆动高点和低点，虚线连着最近两个高点（橙）和最近两个低点（蓝）。成交量里颜色深的柱子是平时 2 倍以上的量。${(() => { const c = coneNow(); if (!c) return ""; const cv = c.cover ? `历史上实际一个月涨跌落在 ±1 倍范围内的比例：2015 年前 ${fmt(c.cover.pre[0] * 100, 0)}%，2015 年后 ${fmt(c.cover.post[0] * 100, 0)}%；±2 倍内约 ${fmt(c.cover.post[1] * 100, 0)}%。` : "这个标的的期权没有长历史可以检验，按同样的算法画出。"; return `<br><b style="color:var(--accent)">最新一根右边的蓝色扇形</b>：期权给出的未来 21 个交易日预期范围，深色 ±1 倍、浅色 ±2 倍（${esc(c.src)}，隐含波动 ${fmt(c.iv, 1)}%）。${cv}它只衡量幅度，不说明方向。`; })()}`;
+      $("kkey").innerHTML = `<b>标签</b>：<b style="color:var(--fear)">恐慌</b> 大家开始花大钱买保险（恐惧指标第一次亮到 3 条） · <b style="color:var(--ok)">退潮</b> 恐慌之后保险变便宜、价格不再创新低 · <b style="color:var(--greed)">涨过头</b> 涨得太急、跟着涨的股票变少、开始有人买保护（只说明危险，不说明哪天见顶） · <b style="color:var(--alert)">抛售</b> 2 倍成交量的大跌，而且已经超卖（${cur.k === "^SOX" ? "用 SMH 的成交量" : "这个品种自己的"}）。<br><b>情绪标签</b>（可以单独关掉）：<b style="color:var(--fear)">极恐</b> 情绪分跌破 −60 · <b style="color:var(--greed)">过热</b> 情绪分升破 +60 · 空心的 <b style="color:var(--fear)">急冷</b> / <b style="color:var(--greed)">急升</b> 情绪分 10 天的变化是 1995 年以来最快的 2%（只用当天以前的数据比）。都只标每一段的第一天（相邻 10 天只算一次）。标签太挤时会缩成同色小圆点，鼠标停在那天就能看到名字。<br><b>色带</b>（价格区最下面一条，在"色带"里切换）：<b>周期位置</b>每天一种状态——<b style="color:var(--fear)">恐慌定价中</b>、<b style="color:var(--ok)">恐慌退潮</b>、<b style="color:var(--watch)">二次探底</b>、<b style="color:var(--alert)">跌了没人买保险</b>、浅黄 跌了部分定价、<b style="color:var(--greed)">参与度先走</b>、浅橙 延伸、浅绿 普涨回归，空白是平稳；<b>情绪分</b>每天按分数着色，蓝 = 恐慌、橙 = 过热，越极端越深。整段情绪分在 −60 以下或 +60 以上时，价格区也会铺一层浅色。这些都是整个半导体市场的情绪，KOSPI 等别的品种按同一天（或之前最近一个美股交易日）对照。<b>灰色小圈</b> = 自动找出的摆动高点和低点，虚线连着最近两个高点（橙）和最近两个低点（蓝）。成交量里颜色深的柱子是平时 2 倍以上的量。${(() => { const c = coneNow(); if (!c) return ""; const cv = c.cover ? `历史上实际一个月涨跌落在 ±1 倍范围内的比例：2015 年前 ${fmt(c.cover.pre[0] * 100, 0)}%，2015 年后 ${fmt(c.cover.post[0] * 100, 0)}%；±2 倍内约 ${fmt(c.cover.post[1] * 100, 0)}%。` : "这个标的的期权没有长历史可以检验，按同样的算法画出。"; return `<br><b style="color:var(--accent)">最新一根右边的蓝色扇形</b>：期权给出的未来 21 个交易日预期范围，深色 ±1 倍、浅色 ±2 倍（${esc(c.src)}，隐含波动 ${fmt(c.iv, 1)}%）。${cv}它只衡量幅度，不说明方向。`; })()}`;
     }
     const fwdK = (i, k) => i + k < B.length ? (B[i + k].c / B[i].c - 1) * 100 : null;
     const extK = (i, k, upw) => { if (i + 1 >= B.length) return null; let m = 0; for (let j = i + 1; j <= Math.min(B.length - 1, i + k); j++) { const r = B[j].c / B[i].c - 1; m = upw ? Math.max(m, r) : Math.min(m, r); } return m * 100; };
@@ -1181,9 +1364,12 @@ function boot(RAW) {
       const ms = maState(i), k = b.di;
       let state = "<p>这一天没有市场状态数据（这个市场单独开市的日子，或者在数据开始之前）。</p>";
       if (k != null) {
-        const p = D.pos[k], fe = D.fear[k], fr = D.frag[k];
-        state = `<div class="big">${p == null ? "—" : POS_N[p]} × 恐惧${fe >= 3 ? "充分定价" : fe >= 1 ? "部分定价" : "未定价"}</div>
-          <table><tr><td>定价恐慌 · 抛售 · 过热</td><td class="num">${D.gfear[k] ?? "—"} · ${D.gsell[k] ?? "—"} · ${D.ghot[k] ?? "—"}</td></tr><tr><td>恐惧定价</td><td class="num">${fe} / 5</td></tr><tr><td>脆弱度</td><td class="num">${fr} / 6</td></tr><tr><td>恐慌退潮</td><td>${D.clear[k] ? "是" : "否"}</td></tr>
+        const p = D.pos[k], fe = D.fear[k], fr = D.frag[k], stn = D.state && D.state[k] != null ? (D.stnames || [])[D.state[k]] : null;
+        const fz = (a, two) => a == null ? "—" : two ? sgn(a, 0) : a;
+        state = `<div class="big">${esc(stn || "—")}</div>
+          <table><tr><td>对照格</td><td>${p == null ? "—" : POS_N[p]} × 恐惧${fe >= 3 ? "充分定价" : fe >= 1 ? "部分定价" : "未定价"}</td></tr>
+          <tr><td>波动 · 仓位 · 价格</td><td class="num">${fz(D.fvol && D.fvol[k])} · ${fz(D.fpos && D.fpos[k], 1)} · ${fz(D.fpx && D.fpx[k], 1)}</td></tr>
+          <tr><td>情绪分</td><td class="num">${fz(D.score && D.score[k], 1)}</td></tr><tr><td>定价恐慌 · 抛售 · 过热</td><td class="num">${D.gfear[k] ?? "—"} · ${D.gsell[k] ?? "—"} · ${D.ghot[k] ?? "—"}</td></tr><tr><td>恐惧定价</td><td class="num">${fe} / 5</td></tr><tr><td>脆弱度</td><td class="num">${fr} / 6</td></tr><tr><td>恐慌退潮</td><td>${D.clear[k] ? "是" : "否"}</td></tr>
           <tr><td>VIX · 期限结构</td><td class="num">${fmt(D.vix[k], 1)} · ${fmt(D.t3[k], 3)}</td></tr><tr><td>成分股 50 日线上方</td><td class="num">${D.pct50[k] == null ? "—" : fmt(D.pct50[k], 0) + "%"}</td></tr></table>`;
       }
       const vr = isFinite(V50[i]) && V50[i] > 0 ? b.v / V50[i] : null;
@@ -1246,12 +1432,13 @@ function boot(RAW) {
         <div class="kgrp" role="group" aria-label="画线工具"><span class="kl">画线</span>${[["pick", "点选"], ["h", "水平线"], ["t", "趋势线"]].map(([k, t]) => `<button type="button" class="kbtn${on(tool === k)}" data-tool="${k}">${t}</button>`).join("")}<button type="button" class="kbtn" data-act="clear">${clearArm ? "再点一次确认" : "清除画线"}</button></div>
         <div class="kgrp" role="group" aria-label="均线"><span class="kl">均线</span>${cfg.mas.map(p => `<button type="button" class="kbtn mach${cfg.on[p] ? "" : " off"}" data-ma="${p}"><i style="background:${maCol(p)}"></i>MA${p}${DEF_MA.includes(p) ? "" : ' <span data-rm="' + p + '" aria-label="删除">×</span>'}</button>`).join("")}<input id="k-maadd" type="number" min="2" max="400" step="1" placeholder="周期" aria-label="添加均线周期"><button type="button" class="kbtn" data-act="addma">添加</button></div>
         <div class="kgrp"><label for="k-sub" class="kl">副图</label><select id="k-sub">${SUBS.map(([id, t]) => `<option value="${id}"${cfg.sub === id ? " selected" : ""}>${t}</option>`).join("")}</select>
-          <label><input type="checkbox" id="k-mk"${cfg.mk ? " checked" : ""}>标记</label><label><input type="checkbox" id="k-smk"${cfg.smk ? " checked" : ""}>情绪标签</label><label><input type="checkbox" id="k-bg"${cfg.bg ? " checked" : ""}>情绪色带</label><label><input type="checkbox" id="k-sw"${cfg.sw ? " checked" : ""}>摆动结构</label><label><input type="checkbox" id="k-cone"${cfg.cone ? " checked" : ""}>期权预期范围</label>
+          <label><input type="checkbox" id="k-mk"${cfg.mk ? " checked" : ""}>标记</label><label><input type="checkbox" id="k-smk"${cfg.smk ? " checked" : ""}>情绪标签</label><label><input type="checkbox" id="k-bg"${cfg.bg ? " checked" : ""}>色带</label><select id="k-strip" aria-label="色带显示什么">${[["state", "周期位置"], ["score", "情绪分"]].map(([v, x]) => `<option value="${v}"${cfg.strip === v ? " selected" : ""}>${x}</option>`).join("")}</select><label><input type="checkbox" id="k-sw"${cfg.sw ? " checked" : ""}>摆动结构</label><label><input type="checkbox" id="k-cone"${cfg.cone ? " checked" : ""}>期权预期范围</label>
           <button type="button" class="kbtn" data-act="updown">${cfg.redUp ? "红涨绿跌" : "绿涨红跌"}</button></div>`;
       $("k-sub").onchange = e => { cfg.sub = e.target.value; saveCfg(); schedule(); };
       $("k-mk").onchange = e => { cfg.mk = e.target.checked; saveCfg(); schedule(); };
       $("k-smk").onchange = e => { cfg.smk = e.target.checked; saveCfg(); buildMarkers(); schedule(); };
       $("k-bg").onchange = e => { cfg.bg = e.target.checked; saveCfg(); schedule(); };
+      $("k-strip").onchange = e => { cfg.strip = e.target.value; saveCfg(); schedule(); };
       $("k-sw").onchange = e => { cfg.sw = e.target.checked; saveCfg(); schedule(); };
       $("k-cone").onchange = e => { cfg.cone = e.target.checked; saveCfg(); setRange(cfg.n); renderMA(); schedule(); };
       $("k-maadd").onkeydown = e => { if (e.key === "Enter") addMA(); };
@@ -1474,7 +1661,7 @@ function boot(RAW) {
         <path d="${line("pct200")}" fill="none" stroke="var(--ink-3)" stroke-width="1.3"/><path d="${line("pct50")}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>${thr}
         <line x1="${PL}" x2="${W - PR}" y1="${yN(0)}" y2="${yN(0)}" stroke="var(--line)"/>${bars}
         <text x="${PL}" y="${NT - 1}" font-size="11" fill="var(--ink-3)">60 日新高减新低（家）</text>${ticks}</svg>
-      <div class="hleg"><span class="sw" style="background:var(--accent)"></span>50 日线上方 %<span class="sw" style="background:var(--ink-3)"></span>200 日线上方 %<span class="sw" style="background:var(--ok);border-radius:50%"></span>广度推力（Zweig）<span class="dim">虚线 60%：指数离高点 3% 以内而低于它，算"上涨变窄"</span></div></div>
+      <div class="hleg"><span class="sw" style="background:var(--accent)"></span>50 日线上方 %<span class="sw" style="background:var(--ink-3)"></span>200 日线上方 %<span class="sw" style="background:var(--ok);border-radius:50%"></span>广度推力（Zweig）<span class="dim">"上涨变窄"看的是指数离高点 5% 以内时，50 日线上方的比例比自己 60 日峰值回落 20 个百分点以上；虚线 60% 只作参考线</span></div></div>
       <p class="anote">现在：${now}只用现在的成分股（幸存者偏差），2005 年以前样本偏少。</p>`;
     box.querySelectorAll("[data-br]").forEach(b => b.onclick = () => { bRange = +b.dataset.br; renderBreadth(); });
   }
@@ -1508,14 +1695,55 @@ function boot(RAW) {
       <div class="wk"><table><thead><tr><th>高点</th><th>最大跌幅</th><th>见底用时</th><th>收复高点</th><th>VIX 峰值</th><th>Baa 峰值</th><th>类型</th><th>高点前 40 天亮过的脆弱项</th><th>低点前后亮过的恐惧项</th></tr></thead><tbody>${E.slice().reverse().map(row).join("")}</tbody></table></div>`;
   }
 
+  // ---------- 宏观背景（第六轮，只作背景） ----------
+  let mRange = 156;
+  function renderMacro() {
+    const box = $("macro"), M = RAW.macro;
+    if (!box) return;
+    if (!M || !M.d || !M.d.length) { box.innerHTML = '<div class="quiet">宏观背景还没有数据：这些数据源是这一轮新加的，下一次下载数据后显示。</div>'; return; }
+    const n = M.d.length, k0 = mRange ? Math.max(0, n - mRange) : 0, len = n - k0;
+    const fmtv = (v, u) => v == null ? "—" : (Math.abs(v) >= 1000 ? fmt(v, 0) : fmt(v, 2)) + (u === "%" || u === "bp" ? u : u ? " " + u : "");
+    const card = ([k, col]) => {
+      const s = M.ser[k], now = M.now[k]; if (!s || !now) return "";
+      const xs = s.slice(k0), vals = xs.filter(v => v != null);
+      if (!vals.length) return `<div class="mac"><div class="mac-h"><b>${esc(now.name)}</b></div><div class="quiet">没有数据</div></div>`;
+      let lo = Math.min(...vals), hi = Math.max(...vals); if (k === "curve") { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+      const pad = (hi - lo) * 0.08 || 1, W = 300, H = 70, X = j => 2 + j / Math.max(1, len - 1) * (W - 4), Y = v => 4 + (hi + pad - v) / (hi - lo + 2 * pad) * (H - 8);
+      let path = "", on = false; xs.forEach((x, j) => { if (x == null) { on = false; return; } path += (on ? "L" : "M") + X(j).toFixed(1) + " " + Y(x).toFixed(1); on = true; });
+      return `<div class="mac"><div class="mac-h"><b>${esc(now.name)}</b><span class="dim">${now.pct == null ? "" : "历史分位 " + now.pct + "%"}</span></div>
+        <div class="mac-v num">${fmtv(now.v, now.unit)} <span class="dim">20 日 ${now.d20 == null ? "—" : sgn(now.d20, Math.abs(now.d20) >= 100 ? 0 : 2)}</span></div>
+        <svg data-m="${k}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(now.name)}的走势">${k === "curve" ? `<line x1="2" x2="${W - 2}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)" stroke-dasharray="3 3"/>` : ""}<path d="${path}" fill="none" stroke="var(${col})" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <p class="gnote">${esc(now.note || "")}</p></div>`;
+    };
+    const ex = (k, dp) => { const x = M.now[k]; return x && x.v != null ? `${esc(x.name)} ${sgn(x.v, dp)}${x.unit === "%" ? "%" : x.unit}` : ""; };
+    box.innerHTML = `<p class="warn">${esc(M.note)}</p>
+      <div class="hctl">${[[156, "3 年"], [0, "全部（2003 年起）"]].map(([r, x]) => `<button type="button" class="kbtn${mRange === r ? " on" : ""}" data-mr="${r}">${x}</button>`).join("")}</div>
+      <div class="macs">${[["nl", "--accent"], ["y10", "--ink-2"], ["curve", "--ink-2"], ["move", "--fear"], ["dxy", "--ink-2"]].map(card).join("")}</div>
+      <p class="anote">${[ex("nl13", 2), ex("y10d60", 0)].filter(Boolean).join("；")}。数据：FRED（美联储总资产、国库账户、逆回购、国债收益率），Yahoo（MOVE、美元指数），每周取一个点。</p>`;
+    box.querySelectorAll("[data-mr]").forEach(b => b.onclick = () => { mRange = +b.dataset.mr; renderMacro(); });
+    box.querySelectorAll("svg[data-m]").forEach(svg => { const k = svg.dataset.m, now = M.now[k]; sparkHover(svg, 300, k0, len, i => `${esc(M.d[i])}<br>${esc(now.name)} <b>${fmtv(M.ser[k][i], now.unit)}</b>`); });
+  }
+
   // ---------- method ----------
+  function renderDict() {
+    const IND = RAW.indicators || [], FD = RAW.factor_defs || {}, box = $("dict");
+    if (!box) return;
+    if (!IND.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<h3 class="subh2" style="margin-top:6px">指标词典</h3><p class="anote" style="margin:0 0 6px">每个指标三句话：是什么、代表什么情绪、有什么用。标签来自历史检验；"领先 / 同步"来自第六轮核对（历次顶底附近它到极端的时间）。</p>` +
+      Object.entries(FD).map(([k, f]) => `<h3>${esc(f.name)}：${esc(f.q)}</h3><dl class="gloss">${IND.filter(x => x.f === k).map(x => `<dt>${esc(x.name)} <span class="tag">${esc(x.tag)}</span></dt><dd><span>${esc(x.what)}</span><span>${esc(x.mood)}</span><span>${esc(x.use)}</span><span class="dim">时间：${esc(x.timing)}</span></dd>`).join("")}</dl>`).join("") +
+      `<h3>周期位置</h3><dl class="gloss">${(RAW.state_defs || []).map(s => `<dt>${esc(s.name)}</dt><dd>${esc(s.text)}</dd>`).join("")}</dl>`;
+  }
   function renderMethod() {
     $("method").innerHTML = `<ul>
-      <li><b>主线</b>：情绪 = 价格走到了哪一步 × 市场有没有为恐惧（或贪婪）付钱。价格、量能、动量、参与度说明"在哪一段"；期权和信用说明"情绪有没有被定价"。不再合成一个总分。</li>
+      <li><b>主线</b>：情绪 = 价格走到了哪一步 × 市场有没有为恐惧（或贪婪）付钱。价格、量能、动量、参与度说明"在哪一段"；期权和信用说明"情绪有没有被定价"。</li>
+      <li><b>三个因子</b>（第六轮）：把历次顶底的数据拆开看，只有三件互相独立的事——<b>波动恐惧</b>（期权和信用）、<b>仓位</b>（认沽/认购比、3 倍杠杆多空）、<b>价格与参与度</b>（普跌、延伸、背离、上涨变窄）。因子就是把这些项目按机制分三组、各自平均；它们和情绪分用的是同一批项目，都只作描述。</li>
+      <li><b>周期位置</b>（第六轮）：顶和底重复出现的不是"某个数到了某个值"，而是顺序。底部：普跌和 VIX 跳升先到极端（中位数在最终低点前两三周），VIX 水平、认沽/认购比、信用在低点当天或之后才到；磨出来的底，最后一次低点的恐惧比第一次少。顶部：参与度先走（中位数提前约 40 天），认沽/认购比低位其次，价格最后。周期位置按这些顺序给每天一个状态，只作描述。</li>
+      <li><b>情绪分</b> = 过热温度 − (定价恐慌 + 抛售恐慌) ÷ 2，−100 极度恐慌到 +100 过热，固定分档。约三分之二是价格的回声，所以旁边给"合理区间"和"超出价格的恐慌"。</li>
+      <li><b>第六轮去掉或改了什么</b>：去掉 SKEW（恐慌时反而下降）、VVIX（和 VIX 同源）、指数认沽/认购比（机构对冲为主，分不开顶底）；VXN 不再单独一组（和 VIX 相关 0.95）；韩国项改成 KOSPI 20 日急跌；"上涨变窄"改成参与度比 60 日峰值回落 20 个百分点。流动性、利率、美元只放在宏观背景里：检验过对之后涨跌没有前瞻性。</li>
       <li><b>共通的口径</b>：涨跌按各自的长期波动折算（半导体年化约 32%，标普约 15%），所以"半导体跌 23%"和"标普跌 11%"是同一程度。成交量除以自己的 50 日均量，RSI、广度用百分比，期权用比值。同一条规则对指数、个股、韩国都适用。</li>
       <li><b>和全部历史比</b>：分位都只用当天以前的全部历史，再加固定刻度（VIX 20/30/40、期限结构 1.0、信用走阔 20bp）。不用 3 年滚动窗口，因为它会让同一个 VIX 数值在不同年份打出相反的分。</li>
       <li><b>怎么检验</b>：每条规则先写下机制和阈值（行业惯例或整数），再看三件事：历次顶底附近出现的比例对比平时；之后 60 天和"同样跌深的日子"比；2015 年前后分两段。价格、量能、动量类另外在 33 个品种上逐个检验。<b>结果只决定标签，不回头改阈值。</b></li>
-      <li><b>检验结果</b>：两段都成立的是"跌深 + 恐惧充分定价"（之后更好）、"跌深 + 恐惧没定价"（之后更差）、信用利差快速走阔、恐慌退潮、脆弱度 ≥ 4 条（样本很少）。单条恐惧项单独看两段不一致。价格、量能、动量类在 33 个品种上都只能描述阶段，没有稳定的额外信息；离 200 日线很远之后平均反而继续涨。</li>
+      <li><b>检验结果</b>：两段都成立的是"跌深 + 恐惧充分定价"（之后更好）、"跌深 + 恐惧没定价"（之后更差）、信用利差快速走阔、恐慌退潮。脆弱度 ≥ 4 条在"上涨变窄"改定义后两段不一致（2015 年后更差，2015 年前不是），降为只作描述。单条恐惧项单独看两段不一致。价格、量能、动量类在 33 个品种上都只能描述阶段，没有稳定的额外信息；离 200 日线很远之后平均反而继续涨。</li>
       <li><b>真正能衡量的（第五轮）</b>：期权隐含波动能预告之后一个月的波动幅度（VIX、VXN、半导体折算值两段都成立，±1 倍范围覆盖约 3/4 以上）；价格在 200 日线下方时，之后波动更大、再跌一大段的概率更高（33 个品种两段都成立）。这些都只衡量幅度和风险，<b>不衡量方向</b>：同样的状态之后 60 天涨跌的中位数差不多。</li>
       <li><b>均线</b>只作展示，不参与任何判断。主动买卖、大单、持仓变化还没有历史，只作参考。</li>
       <li>每天的读数记在 <code>daily_log.csv</code>，积累样本外记录。</li></ul>`;
@@ -1535,6 +1763,19 @@ function boot(RAW) {
   const HL = RAW.health || {}, stale = (HL.stale || []).map(([k, d]) => `${esc(k)}（${shortDate(d)}）`), miss = (HL.missing || []).map(esc);
   const healthTxt = stale.length || miss.length ? `<br><span class="hwarn">${stale.length ? `这次没取到、沿用上次的数据：${stale.join("、")}` : ""}${stale.length && miss.length ? "；" : ""}${miss.length ? `缺数据：${miss.join("、")}` : ""}</span>` : "";
   $("stamp").innerHTML = `数据截至 <span class="num">${shortDate(RAW.asof)}</span> ${live ? `<b>${live}</b>` : "收盘"}${built ? `<br>生成于 <span class="num">${esc(built)}</span>` : ""}${healthTxt}`;
+  // 数据过期提示：最近一个已经收盘（再留到美东 20:00，等云端收盘后的两次运行）的交易日还没有数据
+  try {
+    const o = {}; for (const x of new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date())) o[x.type] = x.value;
+    let d = new Date(Date.UTC(+o.year, +o.month - 1, +o.day)); const hm = (+o.hour % 24) * 60 + +o.minute, wk = x => x.getUTCDay() === 0 || x.getUTCDay() === 6;
+    const back = () => { do { d = new Date(d.getTime() - 864e5); } while (wk(d)); };
+    if (wk(d) || hm < 20 * 60) back();
+    const exp = d.toISOString().slice(0, 10);
+    if (RAW.asof < exp) {
+      let k = 0; for (let x = new Date(exp + "T00:00:00Z"); x.toISOString().slice(0, 10) > RAW.asof; x = new Date(x.getTime() - 864e5)) if (!wk(x)) k++;
+      const el = $("stale"); el.hidden = false;
+      el.innerHTML = `<b>数据可能过期</b>：看板停在 ${esc(RAW.asof)}，最近一个已收盘的交易日是 ${esc(exp)}（落后 ${k} 个交易日）。云端自动更新可能没有跑；遇到美股休市日会误报。`;
+    }
+  } catch (e) {}
   $("foot").innerHTML = "行情来自 Yahoo Finance 日线（交易时段内最后一根是盘中值），信用利差来自 FRED，期权来自 CBOE。仅作情绪参考，不构成投资建议。";
   const KEY = "tech-sentiment-survey-v1"; let manual = {};
   try { manual = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) {}
@@ -1543,9 +1784,19 @@ function boot(RAW) {
     el.addEventListener("input", () => { manual[key] = el.value === "" ? null : el.value; try { localStorage.setItem(KEY, JSON.stringify(manual)); } catch (e) {} });
   }
   const safe = (f, id) => { try { f(); } catch (e) { console.error(e); const el = $(id); if (el) el.innerHTML = '<div class="quiet">这一块出错了，未取得数据。</div>'; } };
-  safe(renderScore, "score"); safe(renderThree, "three"); safe(renderDaily, "dtab"); safe(renderHead, "head"); safe(renderGauges, "gauges"); safe(renderTemp, "temp"); safe(renderMatrix, "matrix"); safe(renderLists, "list-fear"); safe(renderLayers, "layers");
-  safe(renderOptions, "opts"); safe(renderBreadth, "breadth"); safe(renderCycles, "cycles"); safe(renderMethod, "method");
-  let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { safe(drawTemp, "temp"); safe(renderBreadth, "breadth"); safe(renderCycles, "cycles"); KL.draw(); }, 150); });
+  safe(renderScore, "score"); safe(renderFactors, "factors"); safe(renderCycle, "cycle"); safe(renderThree, "three"); safe(renderDaily, "dtab"); safe(renderHead, "head"); safe(renderGauges, "gauges"); safe(renderTemp, "temp"); safe(renderMatrix, "matrix"); safe(renderLists, "list-fear"); safe(renderLayers, "layers");
+  safe(renderOptions, "opts"); safe(renderBreadth, "breadth"); safe(renderMacro, "macro"); safe(renderCycles, "cycles"); safe(renderMethod, "method"); safe(renderDict, "dict");
+  // 折叠块：记住每个人展开过哪些（只存在这台设备的浏览器里）；展开时重画里面的图（收起时量不到宽度）
+  const FK = "ts-folds"; let folds = {};
+  try { folds = JSON.parse(localStorage.getItem(FK) || "{}") || {}; } catch (e) {}
+  const redraw = id => { if (id === "temp-sec") safe(drawTemp, "temp"); else if (id === "breadth-sec") safe(renderBreadth, "breadth"); else if (id === "history-sec") safe(renderCycles, "cycles"); else if (id === "macro-sec") safe(renderMacro, "macro"); };
+  document.querySelectorAll("details.fold").forEach(el => {
+    if (folds[el.id]) el.open = true;
+    el.addEventListener("toggle", () => { folds[el.id] = el.open ? 1 : 0; try { localStorage.setItem(FK, JSON.stringify(folds)); } catch (e) {} if (el.open) redraw(el.id); });
+  });
+  const openFold = el => { if (el && el.tagName === "DETAILS" && !el.open) el.open = true; };
+  document.querySelector(".snav").addEventListener("click", e => { const a = e.target.closest("a[href^='#']"); if (a) openFold(document.querySelector(a.getAttribute("href"))); });
+  let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { safe(drawTemp, "temp"); safe(renderBreadth, "breadth"); safe(renderCycles, "cycles"); safe(renderMacro, "macro"); KL.draw(); }, 150); });
   // light / dark switch (light by default; canvases read colour tokens, so redraw them)
   const tb = $("themebtn");
   const setTheme = dark => { if (dark) document.documentElement.setAttribute("data-theme", "dark"); else document.documentElement.removeAttribute("data-theme");

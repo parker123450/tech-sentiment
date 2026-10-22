@@ -42,9 +42,10 @@ def daily(s, lag):
 
 # 净流动性（十亿美元）= 总资产 − 国库账户 − 逆回购；周三数据周四公布，按 2 个交易日滞后
 walcl = S["WALCL"] / 1000
-tga = S["WTREGEN"]; rrp = S["RRPONTSYD"]
+tga = S["WTREGEN"] / 1000; rrp = S["RRPONTSYD"]        # WTREGEN 是百万美元（2026-10-23 更正：之前按十亿算，净流动性被国库账户主导）
 rrp_w = rrp.reindex(walcl.index, method="ffill").fillna(0)
 nl = (walcl - tga.reindex(walcl.index, method="ffill") - rrp_w).dropna()
+print("净流动性最近：", nl.tail(3).round(0).to_dict())
 NL = daily(nl, 2); WAL = daily(walcl, 2); TGA = daily(tga, 2); RRP = daily(rrp, 1); RES = daily(S["WRESBAL"], 2)
 X = {
     "净流动性 4 周变化(占总资产%)": (NL - NL.shift(20)) / WAL * 100,

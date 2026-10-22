@@ -11,10 +11,15 @@ build_sentiment.py --notify 在每次刷新后调用。口径全部来自 engine
   7. 恐慌抛售：SMH 放量 2 倍下跌且 RSI ≤ 30
 同一条信号同一个交易日只推一次（记录在 .notify_state.json）。盘中运行时用的是实时价，收盘前可能还会变。
 
+第六轮（2026-10-23）加两样：
+  - 每日摘要：每个交易日收盘后推一条：情绪分、三个因子、周期位置、今天动了什么、期权给的下个月幅度、下跌风险（_digest）。
+  - 看门狗：美东 18:30 以后，看板的数据日期还不是最近一个交易日，推"数据没更新"（_stale，每天最多一次）。
+
 单独测试：python3 notify.py --test   （发一条测试通知）
-         python3 notify.py --dry    （只打印现在会推什么，不弹通知）
+         python3 notify.py --dry    （只打印现在会推什么，包括每日摘要，不弹通知）
 """
 import json, os, subprocess, sys
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
@@ -112,13 +117,76 @@ def signals():
     return day, out
 
 
-def run(dry=False):
+def ny_now():
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("America/New_York"))
+
+
+def last_closed(now, hm=(16, 15)):
+    """最近一个已经收盘（16:15 以后）的工作日。美股休市日不认识，会当成交易日。"""
+    d = now.date()
+    if d.weekday() >= 5 or (now.hour, now.minute) < hm:
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.isoformat()
+
+
+def digest(page):
+    """收盘后的每日摘要：一条消息说清今天。数字都来自 engine.build()，这里只拼文字。"""
+    S, F, st = page.get("score") or {}, page.get("factors") or {}, page.get("state") or {}
+    lines = []
+    if S.get("v") is not None:
+        lines.append(f"情绪分 {S['v']:+d}（{S.get('lean', '')}）" + (f"，5 天 {S['d5']:+.0f}" if S.get("d5") is not None else ""))
+    fs = [f"{f['name']} {f['v']:+d}" if f.get("two") else f"{f['name']} {f['v']}" for f in F.values() if f.get("v") is not None]
+    if fs:
+        lines.append("；".join(f"{x}（{f['word']}）" for x, f in zip(fs, [f for f in F.values() if f.get("v") is not None])))
+    if st:
+        lines.append(f"周期位置：{st['name']}（第 {st['days']} 天）" + (f"，{'、'.join(st['sub'])}" if st.get("sub") else ""))
+    ch = page.get("changes") or []
+    lines.append("今天：" + ("；".join(c["t"] for c in ch[:4]) if ch else "没有指标的灯亮起或熄灭"))
+    ms = page.get("measure") or {}
+    for c in ms.get("three") or []:
+        if c.get("k") == "move":
+            lines.append(f"期权给的下个月预期波动 {c['big']}（只说幅度，不说方向）")
+    rk = ms.get("risk") or {}
+    if rk.get("name") and rk.get("i") is not None:
+        row = (rk.get("rows") or [{}] * 4)[rk["i"]]
+        p = row.get("sox_post")
+        lines.append(f"趋势：{rk['name']}" + (f"，历史上 60 天内再跌 {rk['thr'] * 100:.0f}% 的比例 {p * 100:.0f}%" if p is not None and rk.get("thr") else ""))
+    return f"{page.get('asof')} 收盘", "\n".join(lines)
+
+
+def run(dry=False, page=None):
     day, out = signals()
     try:
         state = json.load(open(STATE, encoding="utf-8"))
     except Exception:
         state = {}
     sent = 0
+    # 每日摘要和看门狗（第六轮）
+    now = ny_now()
+    exp = last_closed(now)
+    if dry and day != exp:                                  # --dry 时不管是不是收盘后，都打印一份摘要预览
+        page = page or E.build()[0]
+        title, msg = digest(page)
+        print(f"[每日摘要预览（收盘后才会真的推送；现在最近收盘的交易日是 {exp}）] {title}\n{msg}")
+    if day == exp and (dry or state.get("_digest") != day):
+        if page is None:
+            page = E.build()[0]
+        title, msg = digest(page)
+        print(f"[每日摘要] {title}\n{msg}")
+        if not dry:
+            send(title, msg)
+            state["_digest"] = day
+            sent += 1
+    elif day < last_closed(now, (18, 30)) and state.get("_stale") != exp:
+        msg = f"看板的数据停在 {day}，最近一个交易日 {exp} 的收盘数据还没取到。可能是数据源没更新或自动更新没跑；美股休市日会误报。"
+        print(f"[看门狗] {msg}")
+        if not dry:
+            send("数据没更新", msg)
+            state["_stale"] = exp
+            sent += 1
     for key, title, msg in out:
         if state.get(key) == day:
             continue

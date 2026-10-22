@@ -36,18 +36,21 @@ ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ADJ = {"HYG", "IEF", "RSP", "SPY"}                        # 这几只算比值时用含分红的价格，否则分红会让比值一路下滑
 
 SYMBOLS = [
-    "^VIX", "^VIX9D", "^VIX3M", "^VVIX", "^VXN", "^SKEW",   # 期权：隐含波动和偏度
+    "^VIX", "^VIX9D", "^VIX3M", "^VXN",                    # 期权：隐含波动（第六轮去掉 VVIX、SKEW：核对里没有信息）
     "^GSPC", "^NDX", "SPY", "RSP", "QQQ",                  # 大盘、广度、实际波动
     "^SOX", "SMH", "SOXX", "SOXL", "SOXS",                 # 半导体指数、ETF、3 倍多空
     "HYG", "IEF",                                          # 信用：高收益债和国债
     "^KS11", "000660.KS", "005930.KS",                     # KOSPI、SK 海力士、三星
+    "^MOVE", "DX-Y.NYB",                                   # 宏观背景（第六轮）：债券波动、美元指数，只作背景
 ]
 # 半导体成分股（费城半导体指数和 SMH 的主要成员，2026-10 的名单）。只用现在的成员，早年的广度有幸存者偏差。
 SEMIS = ["NVDA", "AVGO", "AMD", "TSM", "ASML", "QCOM", "TXN", "MU", "AMAT", "LRCX", "KLAC", "ADI", "INTC", "MRVL", "NXPI",
          "MCHP", "ON", "MPWR", "TER", "ENTG", "SWKS", "ARM", "GFS", "COHR", "LSCC", "STM", "UMC", "ASX", "MTSI"]
 # 高收益和投资级利差（%）。ICE 授权限制，FRED 现在只给最近 3 年；
 # BAA10Y（穆迪 Baa 公司债 − 10 年期国债，1986 年起）补长期历史，看板用它区分系统性和板块型下跌
-FRED = {"HYOAS": "BAMLH0A0HYM2", "IGOAS": "BAMLC0A0CM", "BAA10Y": "BAA10Y"}
+FRED = {"HYOAS": "BAMLH0A0HYM2", "IGOAS": "BAMLC0A0CM", "BAA10Y": "BAA10Y",
+        # 宏观背景（第六轮，只作背景，检验过没有前瞻性）：美联储总资产（百万）、国库账户（十亿）、隔夜逆回购（十亿）、10 年和 2 年国债
+        "WALCL": "WALCL", "WTREGEN": "WTREGEN", "RRPONTSYD": "RRPONTSYD", "DGS10": "DGS10", "DGS2": "DGS2"}
 # 注意：完整的浏览器 UA（带 Chrome/...）没有 cookie 时会被 Yahoo 直接回 429，简短的 UA 反而正常
 UA = {"User-Agent": "Mozilla/5.0"}
 
@@ -211,6 +214,17 @@ def alert_failure(err):
         pass
 
 
+def keep_recent_gaps(new_rows, old_rows, days=45):
+    """Yahoo 的全量历史偶尔漏掉最近的某一天（2026-10-22 全量下载时 30 多个品种都漏了 10-21）。
+    全量替换历史时，缓存里有、这次没返回、又在最近 days 天以内的日子补回来（也包括比这次更新的那几天）。"""
+    if not new_rows or not old_rows:
+        return new_rows, 0
+    got = {x[0] for x in new_rows}
+    cut = (datetime.strptime(new_rows[-1][0], "%Y-%m-%d") - timedelta(days=days)).strftime("%Y-%m-%d")
+    back = [x for x in old_rows if x[0] not in got and x[0] >= cut]
+    return sorted(new_rows + back, key=lambda x: x[0]), len(back)
+
+
 def update_semis(log=print):
     """半导体成分股日线。每天第一次运行拉 1990 年以来全量（拆股后 Yahoo 会改写历史），之后只补最近 10 天。"""
     rows = {}
@@ -222,7 +236,8 @@ def update_semis(log=print):
                 rows.setdefault(r["symbol"], {})[r["date"]] = [r["date"], r["close"], r["volume"], r["open"], r["high"], r["low"], r["adjclose"]]
     ok = 0
     for s in SEMIS:
-        old = {} if fresh_full else rows.get(s, {})
+        cached = rows.get(s, {})
+        old = {} if fresh_full else cached
         since = None
         if old:
             since = datetime.strptime(max(old), "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() - 10 * 86400
@@ -232,6 +247,10 @@ def update_semis(log=print):
         new = rows_from(res)
         if not new:
             continue
+        if fresh_full:
+            new, nb = keep_recent_gaps(new, [cached[d] for d in sorted(cached)])
+            if nb:
+                log(f"  {s} 这次全量少了 {nb} 天，用存下的数据补回")
         for r in new:
             old[r[0]] = r
         rows[s] = old
@@ -375,7 +394,9 @@ def build_once(open_browser, every, site=None):
             rows = [m[k] for k in sorted(m)]
         else:
             ok_full += 1
-            rows += [x for x in old if x[0] > rows[-1][0]][-5:]   # 全量替换历史，但保留存下的、比这次更新的最后几天
+            rows, nb = keep_recent_gaps(rows, old)              # 全量替换历史，但最近 45 天里缓存有、这次没返回的日子补回来
+            if nb:
+                print(f"  {s} 这次全量少了 {nb} 天，用存下的数据补回")
         series[s] = {"rows": rows}
         health[s] = {"status": "ok", "last": rows[-1][0]}
         print(f"  {s:<10} {len(rows):>6} 天  {rows[0][0]} → {rows[-1][0]}")
@@ -454,6 +475,7 @@ def build_once(open_browser, every, site=None):
     print(f"\n已生成 {OUT_HTML}（{len(html) / 1e6:.1f} MB）和 {OUT_CSV}，时间 {built}")
     if open_browser:
         webbrowser.open("file://" + urllib.parse.quote(OUT_HTML))
+    return page
 
 
 def main():
@@ -477,12 +499,12 @@ def main():
     first = True
     while True:
         try:
-            build_once(open_browser=first and not a.no_open, every=a.every or a.reload, site=a.site)
+            page = build_once(open_browser=first and not a.no_open, every=a.every or a.reload, site=a.site)
             first = False
             if a.notify:
                 try:
                     import notify  # 需要 numpy 和 pandas（Anaconda 自带）
-                    notify.run()
+                    notify.run(page=page)       # 传进去，每日摘要不用再算一遍
                 except Exception as e:
                     print("通知检查出错：", e)
         except Exception as e:
