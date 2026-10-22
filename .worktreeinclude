@@ -1,0 +1,12 @@
+# 新开的工作树（.claude/worktrees/ 下）从主文件夹复制这些不进仓库的文件，免得重新下载
+/vol_history.csv
+/semis_history.csv
+/options_flow/
+/options_contracts/
+/daily_log.csv
+/pc_history.csv
+/options_history.csv
+/options_flow_daily.csv
+/.fetch_state.json
+/.notify_state.json
+/.claude/launch.json
