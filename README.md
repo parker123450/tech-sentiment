@@ -22,7 +22,7 @@
 
 | 想看什么 | 在哪 |
 |---|---|
-| 今天的看板 | `https://<用户名>.github.io/<仓库名>/`（手机、电脑都行） |
+| 今天的看板 | [parker123450.github.io/tech-sentiment](https://parker123450.github.io/tech-sentiment/)（手机、电脑都行） |
 | 看板长什么样 | [总览](docs/screenshots/overview.png) · [K 线](docs/screenshots/kline.png) · [期权](docs/screenshots/options.png) |
 | 每条规则怎么定、怎么读 | [规则说明.md](规则说明.md) |
 | 历史检验结果 | [研究结论.md](研究结论.md) |
