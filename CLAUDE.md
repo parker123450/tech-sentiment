@@ -74,9 +74,9 @@
 | `规则说明.md` | 给用户看的白话规则说明。改口径要同步改。 |
 | `研究结论.md` | `research.py` 生成，不要手改。 |
 | `旧版/` | 第三轮（综合分时代）的模板、`backtest.py`、`indicator_audit.py`、回测和审查结论，只作存档，不再维护。 |
-| `~/Library/LaunchAgents/com.<本机用户名>.tech-sentiment.plist`（只在原来那台 Mac 上） | 定时任务：每 30 分钟用 `/opt/anaconda3/bin/python3` 跑 `build_sentiment.py --no-open --market-hours --reload 30 --notify`，只在美东工作日 9:25–16:35 真正拉数据。日志在 `~/Library/Logs/tech-sentiment.log`。停用：`launchctl bootout gui/$(id -u)/com.$(whoami).tech-sentiment`。 |
+| `~/Library/LaunchAgents/com.<本机用户名>.tech-sentiment.plist`（只在原来那台 Mac 上） | **2026-10-22 用户同意停用**（已 bootout + `launchctl disable`，plist 保留；恢复：`launchctl enable` 再 `launchctl bootstrap gui/$(id -u) <plist>`）。原来是定时任务：每 30 分钟用 `/opt/anaconda3/bin/python3` 跑 `build_sentiment.py --no-open --market-hours --reload 30 --notify`，只在美东工作日 9:25–16:35 真正拉数据。日志在 `~/Library/Logs/tech-sentiment.log`。停用：`launchctl bootout gui/$(id -u)/com.$(whoami).tech-sentiment`。 |
 | `.github/workflows/update.yml`、`requirements.txt`、`seed/`、`README.md`、`.gitignore` | 云端自动更新（2026-10-22 第五轮）。GitHub 公开仓库 + Pages：UTC 13–21 点每 30 分钟叫一次（脚本自己判断美东 9:25–16:35），收盘后再叫两次补算；手动运行不看时段。大文件（行情历史、`options_flow/`、`options_contracts/`）放 Actions 缓存；不能丢的小文件（`daily_log.csv`、`pc_history.csv`、`options_history.csv`、`options_flow_daily.csv`、`.fetch_state.json`、`.notify_state.json`）提交到 `data` 分支，第一次用 `seed/`。`TZ=Asia/Shanghai`。`CLAUDE.md`、`旧版/` 不进仓库。 |
-| `cloud/index.html`、`cloud/data.json` | （云端跑通后停用）手机上看的私有网页 https://claude.ai/artifact/Ls54sR7ZVSMAeKhZJcFTFV。页面不带数据，从旁边的 `data.json` 读取，每次 `build_sentiment.py` 都会重写这两个文件。发布靠定时任务 `tech-sentiment-cloud-daily`（Claude 应用的"定时任务"，北京时间周二到周六 05:30，跑一遍数据再发布到同一个链接；应用没开时会在下次打开时补跑）。 |
+| `cloud/index.html`、`cloud/data.json` | （2026-10-22 起不再更新：Claude 应用里的定时任务已暂停，没有删除）原来手机上看的私有网页 https://claude.ai/artifact/Ls54sR7ZVSMAeKhZJcFTFV。页面不带数据，从旁边的 `data.json` 读取，每次 `build_sentiment.py` 都会重写这两个文件。发布靠定时任务 `tech-sentiment-cloud-daily`（Claude 应用的"定时任务"，北京时间周二到周六 05:30，跑一遍数据再发布到同一个链接；应用没开时会在下次打开时补跑）。 |
 | `.claude/launch.json` | 内置浏览器预览用的本地服务器（`python3 -m http.server 8765`），打开 `http://localhost:8765/sentiment.html`。 |
 
 **数据品种**：
@@ -180,7 +180,7 @@
 14. （2026-10-22 第五轮，计划 `docs/计划/第五轮.md`）✅ 白色主题、✅ M1–M4 研究、✅ 看板重排（三件事、每日一览、K 线预期范围、期权五问、提示、网站版按需加载）、✅ 云端工作流和 ntfy 代码。
     - ✅ 部署：GitHub 账号 parker123450，用 `gh` 建了公开仓库、开了 Pages（build_type=workflow）、设了 Secret `NTFY_TOPIC`。第一次手动运行 4 分 10 秒成功，Yahoo、FRED、CBOE 在 GitHub 服务器上都能下载；`data` 分支已有 `daily_log.csv`。测试推送已发到 ntfy。
     - 待用户：手机装 ntfy 订阅频道（频道名在 Secret 里，也记在用户手上，不写进仓库）。
-    - 云端跑通后问用户：停用 Claude 应用的定时任务 `tech-sentiment-cloud-daily`；本机 launchd 只留桌面通知还是停用。
+    - ✅ 用户选择：Claude 应用的定时任务 `tech-sentiment-cloud-daily` 已暂停；本机 launchd 已停用。现在只有云端在跑。
 
 ## 改代码时的注意事项
 
