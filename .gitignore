@@ -1,0 +1,26 @@
+# 本机的东西
+.DS_Store
+__pycache__/
+*.tmp
+.claude/
+/CLAUDE.md
+/旧版/
+
+# 生成的页面
+/sentiment.html
+/cloud/
+/site/
+
+# 大文件：云端放 Actions 缓存，丢了会重新下载
+/vol_history.csv
+/semis_history.csv
+/options_flow/
+/options_contracts/
+
+# 不能丢的小文件：云端提交到 data 分支（初始版本在 seed/）
+/daily_log.csv
+/pc_history.csv
+/options_history.csv
+/options_flow_daily.csv
+/.fetch_state.json
+/.notify_state.json

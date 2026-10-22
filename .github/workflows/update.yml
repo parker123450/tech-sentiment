@@ -1,0 +1,130 @@
+# 科技情绪全景 · 云端自动更新（GitHub Actions + GitHub Pages，公开仓库免费）
+#
+# 盘中每 30 分钟拉一次数据、生成看板、发布到 https://<用户名>.github.io/<仓库名>/ ，出现强信号时推到手机（ntfy）。
+# 数据怎么存：
+#   - 大的行情历史和期权快照放在 Actions 缓存里，丢了会重新下载；
+#   - 不能丢的小文件（样本外日志、认沽/认购比历史、期权 IV 历史、通知记录）提交到 data 分支。
+#     data 分支还没有时，用 main 分支 seed/ 里的初始文件。
+# 手动运行（Actions → 更新看板 → Run workflow）不看交易时段，马上跑一次。
+
+name: 更新看板
+
+on:
+  schedule:
+    # GitHub 的定时用 UTC，而且常晚 5–30 分钟。UTC 13–21 点覆盖美股盘中（夏令时 13:30–20:00，冬令时 14:30–21:00），
+    # 脚本自己判断美东 9:25–16:35 才真正拉数据，其余时间直接退出。
+    - cron: "5,35 13-21 * * 1-5"
+    # 收盘后再叫两次：盘中最后一次被延后或失败时，补算当天收盘
+    - cron: "50 21 * * 1-5"
+    - cron: "40 23 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write     # 往 data 分支提交小文件
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      built: ${{ steps.build.outputs.built }}
+    env:
+      TZ: Asia/Shanghai
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: 取回行情历史和期权快照（缓存）
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vol_history.csv
+            semis_history.csv
+            options_flow
+            options_contracts
+          key: market-${{ github.run_id }}
+          restore-keys: market-
+
+      - name: 取回 data 分支上的小文件
+        run: |
+          if git fetch -q --depth=1 origin data 2>/dev/null; then
+            git archive FETCH_HEAD | tar -x
+          else
+            echo "还没有 data 分支，用 seed/ 里的初始文件"
+            cp -R seed/. .
+          fi
+
+      - name: 拉数据、生成看板
+        id: build
+        run: |
+          GATE="--market-hours"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then GATE=""; fi
+          python build_sentiment.py --no-open --notify --site site $GATE
+          if [ -f site/index.html ]; then echo "built=1" >> "$GITHUB_OUTPUT"; fi
+
+      - name: 保存行情历史和期权快照
+        if: steps.build.outputs.built == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vol_history.csv
+            semis_history.csv
+            options_flow
+            options_contracts
+          key: market-${{ github.run_id }}
+
+      - name: 小文件提交到 data 分支
+        if: steps.build.outputs.built == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          D=$(mktemp -d)
+          cd "$D"
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth=1 origin data 2>/dev/null; then git checkout -q -B data FETCH_HEAD; else git checkout -q --orphan data; fi
+          for f in daily_log.csv pc_history.csv options_history.csv options_flow_daily.csv .fetch_state.json .notify_state.json; do
+            if [ -f "$GITHUB_WORKSPACE/$f" ]; then cp "$GITHUB_WORKSPACE/$f" .; fi
+          done
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有变化"
+          else
+            git commit -q -m "数据 $(date '+%F %H:%M')"
+            git push -q origin data
+          fi
+
+      - name: 打包网页
+        if: steps.build.outputs.built == '1'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: update
+    if: needs.update.outputs.built == '1'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: 发布到 GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
