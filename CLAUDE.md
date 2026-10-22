@@ -16,7 +16,10 @@
 
 用户担心以后不一定用这台 Mac，要求在任何地方都能看到"要做什么、框架、进度、做成了什么样"。所以 **GitHub 仓库是唯一的存档**：
 - 仓库里有代码、`规则说明.md`、`研究结论.md`、本交接说明、每轮的计划（`docs/计划/`）、看板截图（`docs/screenshots/`）。`README.md` 开头的"现在做到哪"是给用户看的进度摘要。
-- **每轮做完都要**：更新 `README.md` 的"现在做到哪"、本文件的待办和相关段落、需要的话换截图，然后提交、推送（推送前问用户）。
+- **每轮做完都要**：更新 `README.md` 的"现在做到哪"、本文件的待办和相关段落、需要的话换截图，然后提交并推送到 GitHub。
+  - 2026-10-22 用户授权：每轮做完**自动推送，不用再问**。只限本项目的代码和文档。
+  - 仍然要先问：改仓库设置（公开或私有、Pages、Secrets）、删除分支、改写历史（force push）。
+  - 推送用 GitHub 命令行工具 `gh`（装在 `~/.local/bin/gh`，`gh auth setup-git` 之后普通 `git push` 就能用；登录由用户自己在浏览器完成）。
 - 换电脑：clone 仓库 → `pip install -r requirements.txt` → `python3 build_sentiment.py`。大文件第一次运行自动下载；样本外日志以云端 `data` 分支为准（`git fetch origin data && git show origin/data:daily_log.csv`）。
 - 不在电脑前：浏览器打开 claude.ai/code，选这个仓库就能接着做（读的就是这份 CLAUDE.md）。
 - 只在原来那台 Mac 上的东西：launchd 定时任务、Claude 应用的定时任务、`~/.claude` 里的会话记录和记忆。重要的内容都已经写进本文件，不要只写在那些地方。
