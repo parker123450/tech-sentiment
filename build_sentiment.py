@@ -49,7 +49,7 @@ SEMIS = ["NVDA", "AVGO", "AMD", "TSM", "ASML", "QCOM", "TXN", "MU", "AMAT", "LRC
 # 高收益和投资级利差（%）。ICE 授权限制，FRED 现在只给最近 3 年；
 # BAA10Y（穆迪 Baa 公司债 − 10 年期国债，1986 年起）补长期历史，看板用它区分系统性和板块型下跌
 FRED = {"HYOAS": "BAMLH0A0HYM2", "IGOAS": "BAMLC0A0CM", "BAA10Y": "BAA10Y",
-        # 宏观背景（第六轮，只作背景，检验过没有前瞻性）：美联储总资产（百万）、国库账户（十亿）、隔夜逆回购（十亿）、10 年和 2 年国债
+        # 宏观背景（第六轮，只作背景，检验过没有前瞻性）：美联储总资产（百万美元）、国库账户（百万美元）、隔夜逆回购（十亿美元）、10 年和 2 年国债
         "WALCL": "WALCL", "WTREGEN": "WTREGEN", "RRPONTSYD": "RRPONTSYD", "DGS10": "DGS10", "DGS2": "DGS2"}
 # 注意：完整的浏览器 UA（带 Chrome/...）没有 cookie 时会被 Yahoo 直接回 429，简短的 UA 反而正常
 UA = {"User-Agent": "Mozilla/5.0"}
@@ -494,6 +494,14 @@ def main():
     if a.market_hours and not us_market_open():
         if not needs_catchup():
             print(datetime.now().astimezone().isoformat(timespec="seconds"), "不在美股交易时段，跳过。")
+            if a.notify:
+                # 不下载也检查一次：收盘后的每日摘要有没有发、数据是不是停在了前一个交易日（看门狗）。
+                # 否则补跑有 3 小时节流，收盘后两次定时都会被跳过，当晚的"数据没更新"提醒永远发不出去。
+                try:
+                    import notify
+                    notify.run()
+                except Exception as e:
+                    print("通知检查出错：", e)
             return
         print(datetime.now().astimezone().isoformat(timespec="seconds"), f"不在美股交易时段，但 {last_session()} 的收盘数据还没算过，补跑一次。")
     first = True

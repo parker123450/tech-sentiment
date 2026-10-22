@@ -89,7 +89,8 @@ jobs:
           key: market-${{ github.run_id }}
 
       - name: 小文件提交到 data 分支
-        if: steps.build.outputs.built == '1'
+        # 不只是生成了看板的时候：不下载的运行也可能发了每日摘要或看门狗提醒，要把 .notify_state.json 存回去，免得下次重发
+        if: steps.build.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

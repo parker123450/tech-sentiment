@@ -574,19 +574,19 @@ def state_now(M):
 # f = 属于哪个因子；col = engine.market() 的列；item = 对应的 0–1 项（≥ 0.8 算"亮"）；light = 自定义亮灯规则（−1 恐惧侧，+1 过热/自满侧）
 # tag = 作用标签（来自研究和核对）；timing = 前瞻 / 同步 / 幅度
 INDICATORS = [
-    dict(id="vix", f="vol", name="VIX", col="vix", item="gf_vix", dp=1, core=True, tag="能衡量幅度", timing="同步",
+    dict(id="vix", f="vol", name="VIX", col="vix", item="gf_vix", light=lambda r: -1 if r.f_vix30 else 0, dp=1, core=True, tag="能衡量幅度", timing="同步",
          what="标普 500 期权隐含的未来 30 天波动，也就是大盘保险的价格。", mood="越高说明越多人愿意花钱防下跌；20 正常，30 以上是恐慌。",
          use="衡量之后一个月波动幅度最准；在底部和低点同步出现，对顶部没有信息；对半导体自己的涨跌没有反应。"),
-    dict(id="vixspike", f="vol", name="VIX 跳升", col="vixr50", item="gf_vixspike", dp=2, core=True, tag="只作描述", timing="领先约 2 周",
+    dict(id="vixspike", f="vol", name="VIX 跳升", col="vixr50", item="gf_vixspike", light=lambda r: -1 if r.f_vixspike else 0, dp=2, core=True, tag="只作描述", timing="领先约 2 周",
          what="VIX 相对自己 50 日均值的倍数。", mood="≥ 1.4 倍说明保险价格在短时间里被抢高，不受各年代 VIX 基准高低影响。",
          use="历次底部几乎都到过极端，中位数在最终低点前两周左右；平时也常亮，要和价格位置一起看。"),
-    dict(id="inv", f="vol", name="期限倒挂 VIX÷VIX3M", col="t3", item="gf_inv", dp=3, core=True, tag="只作描述", timing="领先约 2 周",
+    dict(id="inv", f="vol", name="期限倒挂 VIX÷VIX3M", col="t3", item="gf_inv", light=lambda r: -1 if r.f_inv else 0, dp=3, core=True, tag="只作描述", timing="领先约 2 周",
          what="近月保险和 3 个月保险的价格比。", mood="≥ 1 倒挂：担心的是这几天就要发生的事；< 0.85 很陡：很放心。",
          use="恐慌顶点几乎都伴随倒挂，倒挂解除是恐慌退潮的条件之一。"),
     dict(id="t9", f="vol", name="VIX9D÷VIX", col="t9", dp=3, core=False, tag="只作描述", timing="领先约 2 周",
          what="9 天期 VIX 和 30 天期 VIX 的比。", mood="≥ 1 说明眼前的风险被定价得比一个月还贵。", use="和倒挂同类，更灵敏也更吵。",
          light=lambda r: -1 if r.t9 >= 1 else 0),
-    dict(id="credit", f="vol", name="Baa 利差 20 日走阔", col="baa20", item="gf_credit", dp=0, unit="bp", core=True, tag="有历史支持", timing="同步",
+    dict(id="credit", f="vol", name="Baa 利差 20 日走阔", col="baa20", item="gf_credit", light=lambda r: -1 if r.f_credit else 0, dp=0, unit="bp", core=True, tag="有历史支持", timing="同步",
          what="穆迪 Baa 公司债减 10 年期国债的利差，20 天里走阔了多少基点。", mood="≥ 20bp 说明压力从股票扩散到了信用市场。",
          use="唯一单独就两段都成立的恐惧项；在低点当天或之后几天到极端。"),
     dict(id="hyief", f="vol", name="HYG÷IEF 20 日", col="hyief20", item="gf_hyief", dp=2, unit="%", core=True, tag="只作描述", timing="同步",
@@ -606,7 +606,7 @@ INDICATORS = [
     dict(id="ddv", f="px", name="回撤 ÷ 长期波动", col="ddv", dp=2, core=True, tag="价格位置", timing="—",
          what="距一年高点的回撤，除以自己的长期年化波动。", mood="≤ −0.6 回调（相当于标普跌 10%），≤ −1.2 重伤（相当于标普跌 20%）。",
          use="对照格的纵轴；跌深时恐惧有没有定价决定之后好坏。", light=lambda r: -1 if r.pos >= 2 else 0),
-    dict(id="extv", f="px", name="离 200 日线 ÷ 长期波动", col="extv", item="gh_ext", dp=2, core=True, tag="和预期相反", timing="同步",
+    dict(id="extv", f="px", name="离 200 日线 ÷ 长期波动", col="extv", item="gh_ext", light=lambda r: 1 if r.r_ext else 0, dp=2, core=True, tag="和预期相反", timing="同步",
          what="价格离 200 日线多远，按自己的波动折算。", mood="超过 1 倍是延伸，追涨资金集中。",
          use="33 个品种里延伸之后平均反而继续涨（动量延续），所以只说明脆弱；200 日线下方才是风险信号。"),
     dict(id="z20", f="px", name="20 日速度（Z 分数）", col="z20", dp=1, core=True, tag="只作描述", timing="底部领先约 2 周",
@@ -618,7 +618,7 @@ INDICATORS = [
     dict(id="br50", f="px", name="成分股在 50 日线上方 %", col="br_pct50", item="gs_washout", dp=0, unit="%", core=True, tag="只作描述", timing="底部领先约 3 周、顶部领先约 6 周",
          what="29 只半导体成分股里站在 50 日线上方的比例。", mood="≤ 10% 是全面杀跌；指数在高位时它先回落，是上涨变窄。",
          use="领先最久的东西：峰值中位数在价格高点前 40 天，谷底在最终低点前 20 天；也是对半导体自己的涨跌反应最大的指标。"),
-    dict(id="brdrop", f="px", name="参与度比 60 日峰值回落", col="br_drop60", item="gh_narrow", dp=0, unit="点", core=True, tag="只作描述", timing="顶部领先",
+    dict(id="brdrop", f="px", name="参与度比 60 日峰值回落", col="br_drop60", item="gh_narrow", light=lambda r: 1 if r.r_narrow else 0, dp=0, unit="点", core=True, tag="只作描述", timing="顶部领先",
          what="成分股 50 日线上方比例比自己 60 日里的峰值低了几个百分点。", mood="指数离高点 5% 以内时回落 ≥ 20 点，是参与度先于价格走。",
          use="第六轮把「上涨变窄」改成这个定义；顶部结构状态用它。"),
     dict(id="br200", f="px", name="成分股在 200 日线上方 %", col="br_pct200", dp=0, unit="%", core=False, tag="只作描述", timing="同步",
@@ -647,9 +647,9 @@ def _ind_light(x, r):
             return 0 if v is None or not np.isfinite(float(v)) else int(v)
         except Exception:
             return 0
-    if "item" in x:
+    if "item" in x:                                  # 到了登记的水平（0–1 项满格）才算亮；清单里有的直接用清单（见上面的 light）
         v = r.get(x["item"])
-        if v is None or not np.isfinite(v) or v < 0.8:
+        if v is None or not np.isfinite(v) or v < 1:
             return 0
         return 1 if x["item"].startswith("gh_") else -1
     return 0
@@ -686,7 +686,8 @@ def changes_today(M, rows, fac, st):
     for x in rows:
         if x["light"] != x["light1"]:
             if x["light"]:
-                out.append({"k": "on", "t": f"「{x['name']}」亮了：{fv(x)}" + (f"（历史 {x['pct']:.0f}% 分位）" if x["pct"] is not None else ""), "side": x["light"]})
+                where = "" if x["pct"] is None else f"（历史最低的 {max(1, x['pct']):.0f}%）" if x["pct"] < 50 else f"（历史最高的 {max(1, 100 - x['pct']):.0f}%）"
+                out.append({"k": "on", "t": f"「{x['name']}」亮了：{fv(x)}{where}", "side": x["light"]})
             else:
                 out.append({"k": "off", "t": f"「{x['name']}」熄灭：{fv(x)}", "side": x["light1"]})
     for k, f in fac.items():
